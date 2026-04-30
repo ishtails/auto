@@ -63,27 +63,33 @@ app.post("/rpc/runTradeCycle", async (c) => {
 
 	const input = parseResult.data;
 	console.log("[DEBUG] Validated input:", input);
+
+	try {
 		const cycleId = randomUUID();
 		const amountIn = BigInt(input.amountIn);
 
-		// Get state
+		console.log("[DEBUG] Step 1: Getting state...");
 		const state = await integrationServices.getState({
 			amountIn,
 			tokenIn: "WETH",
 			tokenOut: "USDC",
 		});
+		console.log("[DEBUG] State:", state);
 
-		// Generate proposal
+		console.log("[DEBUG] Step 2: Generating proposal...");
 		const proposal = await integrationServices.generateProposal(state);
+		console.log("[DEBUG] Proposal:", proposal);
 
-		// Evaluate risk (deterministic)
+		console.log("[DEBUG] Step 3: Evaluating risk...");
 		const deterministicRisk = await integrationServices.evaluateRisk(
 			proposal,
 			state
 		);
+		console.log("[DEBUG] Risk:", deterministicRisk);
 
-		// Get AXL risk decision
+		console.log("[DEBUG] Step 4: Sending to AXL...");
 		const axlRisk = await integrationServices.sendToRiskAgent(proposal);
+		console.log("[DEBUG] AXL risk:", axlRisk);
 
 		// Combine risk decisions
 		const riskDecision =
@@ -111,6 +117,7 @@ app.post("/rpc/runTradeCycle", async (c) => {
 
 		// Execute if approved and not dry run
 		if (!input.dryRun && riskDecision.decision === "APPROVE") {
+			console.log("[DEBUG] Step 5: Building route...");
 			const routeResult = await integrationServices.buildRoute(
 				proposal,
 				input.maxSlippageBps
@@ -123,13 +130,16 @@ app.post("/rpc/runTradeCycle", async (c) => {
 				amountOutMinimum: routeResult.amountOutMinimum.toString(),
 				quoteOut: routeResult.quoteOut.toString(),
 			};
+
+			console.log("[DEBUG] Step 6: Executing trade...");
 			execution = await integrationServices.executeVaultTrade({
 				route: routeResult,
 				tokenOut: proposal.tokenOut,
 			});
+			console.log("[DEBUG] Execution:", execution);
 		}
 
-		// Log cycle
+		console.log("[DEBUG] Step 7: Logging cycle...");
 		const logPointer = await integrationServices.logCycle({
 			cycleId,
 			timestamp: new Date().toISOString(),
@@ -139,6 +149,7 @@ app.post("/rpc/runTradeCycle", async (c) => {
 			execution,
 			route,
 		});
+		console.log("[DEBUG] Log pointer:", logPointer);
 
 		return c.json({
 			cycleId,
@@ -147,6 +158,10 @@ app.post("/rpc/runTradeCycle", async (c) => {
 			txHash: execution?.txHash ?? null,
 			logPointer,
 		});
+	} catch (error) {
+		console.error("[DEBUG] Error in trade cycle:", error);
+		throw error;
+	}
 	}
 );
 
