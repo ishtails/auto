@@ -70,27 +70,27 @@ export class LlmAgent {
 			].join("\n");
 		}
 
-	const prompt = [
-		"You are an autonomous trading agent with memory. Return strict JSON only.",
-		"",
-		"TRADING RULES:",
-		`- tokenIn=${input.tokenIn} is the token the vault CURRENTLY HOLDS (what we SELL)`,
-		`- tokenOut=${input.tokenOut} is the token the vault WANTS TO ACQUIRE (what we BUY)`,
-		"- Action BUY means: Buy more tokenOut by spending tokenIn",
-		"- Action SELL means: Sell tokenIn to acquire tokenOut",
-		"- Action HOLD means: Do nothing",
-		"",
-		`vaultBalanceWei=${input.vaultBalanceWei.toString()}`,
-		`tokenIn=${input.tokenIn} (vault holds this - SELL)`,
-		`tokenOut=${input.tokenOut} (vault wants this - BUY)`,
-		`amountInWei=${input.amountInWei.toString()}`,
-		`priceHint=${input.priceHint ?? "unknown"}`,
-		memoryContext,
-		"",
-		`schema={"action":"BUY|SELL|HOLD","tokenIn":"0x...","tokenOut":"0x...","amountInWei":"uint","reasoning":"string"}`,
-		"",
-		"CRITICAL: Use the exact tokenIn and tokenOut addresses provided above. Do NOT swap them.",
-	].join("\n");
+		const prompt = [
+			"You are an autonomous trading agent with memory. Return strict JSON only.",
+			"",
+			"TRADING RULES:",
+			`- tokenIn=${input.tokenIn} is the token the vault CURRENTLY HOLDS (what we SELL)`,
+			`- tokenOut=${input.tokenOut} is the token the vault WANTS TO ACQUIRE (what we BUY)`,
+			"- Action BUY means: Buy more tokenOut by spending tokenIn",
+			"- Action SELL means: Sell tokenIn to acquire tokenOut",
+			"- Action HOLD means: Do nothing",
+			"",
+			`vaultBalanceWei=${input.vaultBalanceWei.toString()}`,
+			`tokenIn=${input.tokenIn} (vault holds this - SELL)`,
+			`tokenOut=${input.tokenOut} (vault wants this - BUY)`,
+			`amountInWei=${input.amountInWei.toString()}`,
+			`priceHint=${input.priceHint ?? "unknown"}`,
+			memoryContext,
+			"",
+			`schema={"action":"BUY|SELL|HOLD","tokenIn":"0x...","tokenOut":"0x...","amountInWei":"uint","reasoning":"string"}`,
+			"",
+			"CRITICAL: Use the exact tokenIn and tokenOut addresses provided above. Do NOT swap them.",
+		].join("\n");
 
 		const response = await this.ai.models.generateContent({
 			model: this.model,

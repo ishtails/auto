@@ -89,6 +89,7 @@
         "react": "catalog:",
         "react-dom": "catalog:",
         "sonner": "catalog:",
+        "viem": "^2.39.0",
         "zod": "catalog:",
       },
       "devDependencies": {

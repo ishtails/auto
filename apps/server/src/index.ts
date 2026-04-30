@@ -1,6 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { runTradeCycleInputSchema } from "@auto/api/trade-types";
+import { createContext } from "@auto/api/context";
+import { appRouter } from "@auto/api/routers/index";
 import { env } from "@auto/env/server";
+import { onError } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -8,6 +10,13 @@ import { createIntegrationServices } from "./services/trade-cycle-services";
 
 const app = new Hono();
 const integrationServices = createIntegrationServices();
+const rpcHandler = new RPCHandler(appRouter, {
+	interceptors: [
+		onError((error) => {
+			console.error(error);
+		}),
+	],
+});
 
 app.use(logger());
 app.use(
@@ -18,21 +27,36 @@ app.use(
 	})
 );
 
-// Debug middleware for POST requests
+const BODY_PARSER_METHODS = new Set([
+	"arrayBuffer",
+	"blob",
+	"formData",
+	"json",
+	"text",
+] as const);
+type BodyParserMethod =
+	typeof BODY_PARSER_METHODS extends Set<infer T> ? T : never;
+
 app.use("/rpc/*", async (c, next) => {
-	if (c.req.method === "POST") {
-		console.log(
-			"[DEBUG] Request headers:",
-			Object.fromEntries(c.req.raw.headers.entries())
-		);
-		try {
-			const cloned = c.req.raw.clone();
-			const body = await cloned.text();
-			console.log("[DEBUG] Raw body:", body);
-		} catch (e) {
-			console.log("[DEBUG] Could not read body:", e);
-		}
+	// Avoid "Body Already Used" by delegating body reads to Hono's parsers.
+	const request = new Proxy(c.req.raw, {
+		get(target, prop) {
+			if (BODY_PARSER_METHODS.has(prop as BodyParserMethod)) {
+				return () => c.req[prop as BodyParserMethod]();
+			}
+			return Reflect.get(target, prop, target);
+		},
+	});
+
+	const { matched, response } = await rpcHandler.handle(request, {
+		prefix: "/rpc",
+		context: createContext({ context: c, services: integrationServices }),
+	});
+
+	if (matched) {
+		return c.newResponse(response.body, response);
 	}
+
 	await next();
 });
 
@@ -45,135 +69,7 @@ app.get("/diagnostics", async (c) => {
 	return c.json(diagnostics, diagnostics.ok ? 200 : 503);
 });
 
-// Run trade cycle endpoint
-app.post("/rpc/runTradeCycle", async (c) => {
-	// Manual body parsing
-	let body: unknown;
-	try {
-		body = await c.req.json();
-		console.log("[DEBUG] Parsed body:", body);
-	} catch (e) {
-		console.log("[DEBUG] Failed to parse JSON body:", e);
-		return c.json({ error: "Invalid JSON body" }, 400);
-	}
-
-	// Validate with Zod
-	const parseResult = runTradeCycleInputSchema.safeParse(body);
-	if (!parseResult.success) {
-		console.log("[DEBUG] Validation failed:", parseResult.error.issues);
-		return c.json(
-			{ error: "Validation failed", issues: parseResult.error.issues },
-			400
-		);
-	}
-
-	const input = parseResult.data;
-	console.log("[DEBUG] Validated input:", input);
-
-	try {
-		const cycleId = randomUUID();
-		const amountIn = BigInt(input.amountIn);
-
-		console.log("[DEBUG] Step 1: Getting state...");
-		const state = await integrationServices.getState({
-			amountIn,
-			tokenIn: "WETH",
-			tokenOut: "USDC",
-		});
-		console.log("[DEBUG] State:", state);
-
-		console.log("[DEBUG] Step 2: Generating proposal...");
-		const proposal = await integrationServices.generateProposal(state);
-		console.log("[DEBUG] Proposal:", proposal);
-
-		console.log("[DEBUG] Step 3: Evaluating risk...");
-		const deterministicRisk = await integrationServices.evaluateRisk(
-			proposal,
-			state
-		);
-		console.log("[DEBUG] Risk:", deterministicRisk);
-
-		console.log("[DEBUG] Step 4: Sending to AXL...");
-		const axlRisk = await integrationServices.sendToRiskAgent(proposal);
-		console.log("[DEBUG] AXL risk:", axlRisk);
-
-		// Combine risk decisions
-		const riskDecision =
-			deterministicRisk.decision === "APPROVE" && axlRisk.decision === "APPROVE"
-				? axlRisk
-				: {
-						decision: "REJECT" as const,
-						reason: `deterministic=${deterministicRisk.decision}:${deterministicRisk.reason};axl=${axlRisk.decision}:${axlRisk.reason}`,
-					};
-
-		let execution: {
-			executionId: string;
-			status: "pending" | "completed" | "failed";
-			txHash: string | null;
-			error: string | null;
-		} | null = null;
-		let route: {
-			target: string;
-			tokenIn: string;
-			tokenOut: string;
-			amountIn: string;
-			amountOutMinimum: string;
-			quoteOut: string;
-		} | null = null;
-
-		// Build route if approved (for both dry run and execution)
-		if (riskDecision.decision === "APPROVE") {
-			console.log("[DEBUG] Step 5: Building route...");
-			const routeResult = await integrationServices.buildRoute(
-				proposal,
-				input.maxSlippageBps
-			);
-			route = {
-				target: routeResult.target,
-				tokenIn: routeResult.tokenIn,
-				tokenOut: proposal.tokenOut,
-				amountIn: routeResult.amountIn.toString(),
-				amountOutMinimum: routeResult.amountOutMinimum.toString(),
-				quoteOut: routeResult.quoteOut.toString(),
-			};
-
-			// Execute only if not dry run
-			if (input.dryRun) {
-				console.log("[DEBUG] Step 6: Skipped (dry run)");
-			} else {
-				console.log("[DEBUG] Step 6: Executing trade...");
-				execution = await integrationServices.executeVaultTrade({
-					route: routeResult,
-					tokenOut: proposal.tokenOut,
-				});
-				console.log("[DEBUG] Execution:", execution);
-			}
-		}
-
-		console.log("[DEBUG] Step 7: Logging cycle...");
-		const logPointer = await integrationServices.logCycle({
-			cycleId,
-			timestamp: new Date().toISOString(),
-			input,
-			proposal,
-			riskDecision,
-			execution,
-			route,
-		});
-		console.log("[DEBUG] Log pointer:", logPointer);
-
-		return c.json({
-			cycleId,
-			decision: riskDecision.decision,
-			executionId: execution?.executionId ?? null,
-			txHash: execution?.txHash ?? null,
-			logPointer,
-		});
-	} catch (error) {
-		console.error("[DEBUG] Error in trade cycle:", error);
-		throw error;
-	}
-});
+// NOTE: `/rpc/*` is handled by oRPC above. Keep non-RPC routes below.
 
 console.log("environment:", env.ENVIRONMENT);
 

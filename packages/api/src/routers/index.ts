@@ -10,6 +10,13 @@ import {
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => "OK"),
+	vaultBalances: publicProcedure.handler(async ({ context }) => {
+		const balances = await context.services.getVaultBalances();
+		return {
+			wethWei: balances.wethWei.toString(),
+			usdcWei: balances.usdcWei.toString(),
+		};
+	}),
 	integrationDiagnostics: publicProcedure.handler(async ({ context }) =>
 		context.services.getDiagnostics()
 	),

@@ -44,6 +44,7 @@ export interface IntegrationServices {
 	generateProposal: (state: TradeCycleState) => Promise<TradeProposal>;
 	getDiagnostics: () => Promise<DiagnosticsResult>;
 	getState: (input: TradeCycleStateInput) => Promise<TradeCycleState>;
+	getVaultBalances: () => Promise<{ usdcWei: bigint; wethWei: bigint }>;
 	logCycle: (record: CycleLogRecord) => Promise<string>;
 	sendToRiskAgent: (proposal: TradeProposal) => Promise<RiskDecision>;
 }

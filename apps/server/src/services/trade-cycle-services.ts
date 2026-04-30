@@ -71,6 +71,13 @@ export const createIntegrationServices = (): IntegrationServices => {
 				tokenOut: tokenOutAddress,
 			};
 		},
+		getVaultBalances: async () => {
+			const [wethWei, usdcWei] = await Promise.all([
+				chainState.getVaultBalance(env.TOKEN_WETH),
+				chainState.getVaultBalance(env.TOKEN_USDC),
+			]);
+			return { wethWei, usdcWei };
+		},
 		generateProposal: async (state) => {
 			// Query memory from 0G (last 5 trades for context)
 			const recentLogs = await logger.readRecentLogs(5);
@@ -145,7 +152,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 		},
 		logCycle: (record) => logger.write(record),
 		getDiagnostics: async () => {
-			const keeperhubReachable = await fetch(`${env.KEEPERHUB_BASE_URL}/health`)
+			const keeperhubReachable = await fetch(
+				`${env.KEEPERHUB_BASE_URL}/api/health`
+			)
 				.then((response) => response.ok)
 				.catch(() => false);
 			const axlReachable = await fetch(`${env.AXL_TRADING_API_URL}/topology`)
