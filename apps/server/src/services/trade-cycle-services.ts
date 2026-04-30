@@ -1,5 +1,5 @@
 import type { IntegrationServices } from "@auto/api/context";
-import type { TradeProposal } from "@auto/api/trade-types";
+import type { RiskDecision, TradeProposal } from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
 import { AxlTransport } from "../integrations/axl-transport";
 import { ChainStateClient } from "../integrations/chain-state";
@@ -21,7 +21,7 @@ const chainIdToKeeperNetwork = (chainId: number): string => {
 };
 
 export const createIntegrationServices = (): IntegrationServices => {
-	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY);
+	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
 	const axl = new AxlTransport(
 		env.AXL_TRADING_API_URL,
 		env.AXL_RISK_API_URL,
@@ -75,9 +75,15 @@ export const createIntegrationServices = (): IntegrationServices => {
 				amountInWei: state.requestedAmountInWei,
 			}),
 		sendToRiskAgent: async (proposal: TradeProposal) => {
+			// Skip AXL if mock mode enabled (AXL P2P not working locally)
+			if (env.MOCK_RISK_AGENT) {
+				console.log("[RiskAgent] Mock mode enabled, skipping AXL P2P");
+				// Return mock APPROVE response
+				return { decision: "APPROVE", reason: "Mock risk agent approval" } as RiskDecision;
+			}
+
 			await axl.sendProposal(proposal);
-			// Give risk agent time to poll and respond (polls every 2s)
-			await new Promise((resolve) => setTimeout(resolve, 2500));
+			// Poll for response (risk agent polls every 2s, we poll for up to 10s)
 			return axl.receiveDecision(10_000);
 		},
 		evaluateRisk: (proposal, state) =>
@@ -90,8 +96,21 @@ export const createIntegrationServices = (): IntegrationServices => {
 			),
 		buildRoute: (proposal, maxSlippageBps) =>
 			uniswap.buildRoute(proposal, maxSlippageBps),
-		executeVaultTrade: ({ route }) => {
+		executeVaultTrade: async ({ route }) => {
 			const encoded = encodeVaultExecuteTrade(env.VAULT_ADDRESS, route);
+
+			// Mock execution for local testing (KeeperHub needs real ETH on mainnet)
+			if (env.MOCK_EXECUTION) {
+				console.log("[Execution] Mock mode enabled, simulating successful transaction");
+				await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
+			return {
+				executionId: `mock_${Date.now()}`,
+				status: "completed",
+				txHash: `0x${"0".repeat(64)}`, // Mock tx hash
+				error: null,
+			};
+			}
+
 			return keeperhub.executeContractCall({
 				abi: encoded.abi,
 				contractAddress: encoded.target,

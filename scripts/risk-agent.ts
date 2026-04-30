@@ -47,40 +47,54 @@ async function pollForProposals() {
 			method: "GET",
 		});
 
+		if (response.status === 204) {
+			// No content - queue is empty
+			return;
+		}
+
 		if (!response.ok) {
-			if (response.status !== 204) {
-				console.log(`[RiskAgent] recv returned ${response.status}`);
-			}
+			console.log(`[RiskAgent] recv returned ${response.status}`);
 			return;
 		}
 
-		const payload = (await response.json()) as {
-			message?: TradeProposal;
-		} | null;
+		// AXL returns raw binary data
+		const responseBuffer = await response.arrayBuffer();
+		const responseText = new TextDecoder().decode(responseBuffer);
 
-		if (!payload?.message) {
+		if (!responseText) {
 			return;
 		}
 
-		const proposal = payload.message;
+		console.log(`[RiskAgent] Received raw data: ${responseText.slice(0, 100)}...`);
+
+		let proposal: TradeProposal;
+		try {
+			proposal = JSON.parse(responseText) as TradeProposal;
+		} catch (parseError) {
+			console.log("[RiskAgent] Failed to parse message as JSON:", parseError);
+			return;
+		}
+
 		console.log("[RiskAgent] Received proposal:", proposal);
 
 		// Evaluate risk
 		const decision = evaluateRisk(proposal);
 		console.log("[RiskAgent] Decision:", decision);
 
-		// Send decision back to trading peer
+		// Send decision back to trading peer as raw binary
+		console.log(`[RiskAgent] Sending decision to ${TRADING_PEER_ID.slice(0, 16)}...`);
+		const decisionBuffer = Buffer.from(JSON.stringify(decision));
+
 		const sendResponse = await fetch(`${RISK_AGENT_API_URL}/send`, {
 			method: "POST",
 			headers: {
-				"content-type": "application/json",
 				"X-Destination-Peer-Id": TRADING_PEER_ID,
 			},
-			body: JSON.stringify(decision),
+			body: decisionBuffer,
 		});
 
 		if (sendResponse.ok) {
-			console.log("[RiskAgent] Sent decision to trading peer");
+			console.log(`[RiskAgent] Sent decision to trading peer (${decisionBuffer.length} bytes)`);
 		} else {
 			console.log(
 				`[RiskAgent] Failed to send decision: ${sendResponse.status}`
@@ -96,7 +110,20 @@ console.log(`[RiskAgent] API URL: ${RISK_AGENT_API_URL}`);
 console.log(`[RiskAgent] Trading peer: ${TRADING_PEER_ID}`);
 
 // Poll every 2 seconds
-setInterval(pollForProposals, 2000);
+const pollInterval = setInterval(pollForProposals, 2000);
+
+// Handle shutdown gracefully
+process.on("SIGTERM", () => {
+	console.log("[RiskAgent] SIGTERM received, shutting down...");
+	clearInterval(pollInterval);
+	process.exit(0);
+});
+
+process.on("SIGINT", () => {
+	console.log("[RiskAgent] SIGINT received, shutting down...");
+	clearInterval(pollInterval);
+	process.exit(0);
+});
 
 // Keep running
 console.log("[RiskAgent] Polling for proposals every 2s...");

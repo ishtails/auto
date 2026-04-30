@@ -8,6 +8,35 @@ Quick guide to run a complete trading cycle locally using Hardhat, AXL P2P netwo
 - Docker (optional, for Hardhat node)
 - All dependencies installed (`bun install`)
 
+## Save API Tokens (Optional)
+
+To skip external API calls during testing, add to your `.env`:
+
+```bash
+# Skip Gemini API calls (saves tokens)
+MOCK_LLM=true
+
+# Skip AXL P2P to risk agent (AXL routing not working locally)
+MOCK_RISK_AGENT=true
+
+# Skip KeeperHub execution (simulates success locally)
+MOCK_EXECUTION=true
+```
+
+**Why mocking is needed for local testing:**
+- **MOCK_LLM:** Saves Gemini API tokens
+- **MOCK_RISK_AGENT:** AXL P2P routing doesn't work on localhost (returns null responses)
+- **MOCK_EXECUTION:** KeeperHub executes on real Base mainnet, not local Hardhat
+
+**Quick start for testing:**
+```bash
+MOCK_LLM=true
+MOCK_RISK_AGENT=true
+MOCK_EXECUTION=true
+```
+
+Remove mocks one by one as you integrate with real services.
+
 ## 1. Start Infrastructure
 
 Start everything in one terminal:
@@ -71,16 +100,30 @@ curl -X POST http://127.0.0.1:8545 \
   }'
 ```
 
+### 3c. Fund KeeperHub Relayer (for gas)
+The KeeperHub relayer needs ETH to pay for transaction gas. Send at least 1 ETH:
+
+```bash
+curl -X POST http://127.0.0.1:8545 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_sendTransaction",
+    "params": [{
+      "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "to": "0x7E99B7ae3D00d9A6D674608dd2DCb83e9148bB0C",
+      "value": "0xDE0B6B3A7640000"
+    }],
+    "id": 1
+  }'
+```
+
 ## 4. Run Trade Cycle (Dry Run)
 
 ```bash
 curl -X POST http://localhost:3000/rpc/runTradeCycle \
   -H "Content-Type: application/json" \
-  -d '{
-    "amountIn": "1000000000000000000",
-    "maxSlippageBps": 100,
-    "dryRun": true
-  }'
+  -d '{"amountIn": "1000000000000000", "maxSlippageBps": 100, "dryRun": false}'
 ```
 
 Expected response:

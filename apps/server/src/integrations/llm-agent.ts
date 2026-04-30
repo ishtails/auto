@@ -14,6 +14,7 @@ export interface LlmStateInput {
 export class LlmAgent {
 	private readonly ai: GoogleGenAI;
 	private readonly model: string;
+	private readonly mockMode: boolean;
 	private readonly responseSchema: Schema = {
 		type: Type.OBJECT,
 		properties: {
@@ -26,12 +27,25 @@ export class LlmAgent {
 		required: ["action", "tokenIn", "tokenOut", "amountInWei", "reasoning"],
 	};
 
-	constructor(model: string, apiKey: string) {
+	constructor(model: string, apiKey: string, mockMode = false) {
 		this.model = model;
+		this.mockMode = mockMode;
 		this.ai = new GoogleGenAI({ apiKey });
 	}
 
 	async generateProposal(input: LlmStateInput): Promise<TradeProposal> {
+		// Mock mode: return predefined response without calling Gemini
+		if (this.mockMode) {
+			console.log("[LLM] Mock mode enabled, returning predefined response");
+			return {
+				action: "BUY",
+				tokenIn: input.tokenIn,
+				tokenOut: input.tokenOut,
+				amountInWei: input.amountInWei.toString(),
+				reasoning: "Mock LLM response for testing - executing strategic trade",
+			};
+		}
+
 		const prompt = [
 			"You are a trading agent. Return strict JSON only.",
 			`vaultBalanceWei=${input.vaultBalanceWei.toString()}`,

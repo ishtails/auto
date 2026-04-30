@@ -48,10 +48,16 @@ export const encodeVaultExecuteTrade = (
 		args: [request],
 	});
 
+	// Serialize for JSON API (convert BigInt to string)
+	const requestForJson = {
+		...request,
+		amountIn: request.amountIn.toString(),
+	};
+
 	return {
 		abi: JSON.stringify(vaultAbi),
 		calldata,
-		functionArgs: JSON.stringify([request]),
+		functionArgs: JSON.stringify([requestForJson]),
 		functionName: "executeTrade",
 		target: vaultAddress,
 		value: route.value.toString(),
