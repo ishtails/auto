@@ -7,16 +7,24 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.mjs"
+    "start": "bun run dist/index.mjs",
+    "test": "bun test"
   },
   "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.8",
     "@auto/api": "workspace:*",
     "@auto/env": "workspace:*",
+    "@ethersproject/providers": "^5.8.0",
+    "@google/genai": "^0.12.0",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
+    "@uniswap/sdk-core": "^7.7.2",
+    "@uniswap/smart-order-router": "^4.22.31",
     "dotenv": "catalog:",
+    "ethers": "^6.16.0",
     "hono": "catalog:",
+    "viem": "^2.39.0",
     "zod": "catalog:"
   },
   "devDependencies": {
