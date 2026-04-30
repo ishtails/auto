@@ -9,8 +9,10 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { createIntegrationServices } from "./services/trade-cycle-services";
 
 const app = new Hono();
+const integrationServices = createIntegrationServices();
 
 app.use(logger());
 app.use(
@@ -43,7 +45,10 @@ export const rpcHandler = new RPCHandler(appRouter, {
 });
 
 app.use("/*", async (c, next) => {
-	const context = await createContext({ context: c });
+	const context = await createContext({
+		context: c,
+		services: integrationServices,
+	});
 
 	const rpcResult = await rpcHandler.handle(c.req.raw, {
 		prefix: "/rpc",
@@ -67,5 +72,9 @@ app.use("/*", async (c, next) => {
 });
 
 app.get("/", (c) => c.text("OK"));
+app.get("/diagnostics", async (c) => {
+	const diagnostics = await integrationServices.getDiagnostics();
+	return c.json(diagnostics, diagnostics.ok ? 200 : 503);
+});
 
 export default app;
