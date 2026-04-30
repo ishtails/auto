@@ -44,22 +44,47 @@ export const rpcHandler = new RPCHandler(appRouter, {
 	],
 });
 
-// Handle RPC requests - use ALL to catch any method
+// Handle RPC requests
 app.all("/rpc/*", async (c) => {
+	console.log("[DEBUG] RPC request:", {
+		method: c.req.method,
+		path: c.req.path,
+		contentType: c.req.header("content-type"),
+	});
+
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	const result = await rpcHandler.handle(
-		new Request(c.req.url, {
-			method: c.req.method,
-			headers: c.req.raw.headers,
-			body: c.req.raw.body,
-		})
-	, {
+	// Read body and create a fresh readable stream for oRPC
+	const bodyText = await c.req.text();
+	console.log("[DEBUG] Body text:", bodyText);
+
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode(bodyText));
+			controller.close();
+		},
+	});
+
+	const requestForOrpc = new Request(c.req.url, {
+		method: c.req.method,
+		headers: c.req.raw.headers,
+		body: stream,
+		duplex: "half", // Required for Request with body stream
+	} as RequestInit);
+
+	console.log("[DEBUG] Calling oRPC with readable stream body");
+
+	const result = await rpcHandler.handle(requestForOrpc, {
 		prefix: "/rpc",
 		context,
+	});
+
+	console.log("[DEBUG] oRPC result:", {
+		matched: result.matched,
+		status: result.response?.status,
 	});
 
 	if (result.matched) {
@@ -76,12 +101,21 @@ app.all("/api-reference/*", async (c) => {
 		services: integrationServices,
 	});
 
+	const bodyText = await c.req.text();
+	const stream = new ReadableStream({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode(bodyText));
+			controller.close();
+		},
+	});
+
 	const result = await apiHandler.handle(
 		new Request(c.req.url, {
 			method: c.req.method,
 			headers: c.req.raw.headers,
-			body: c.req.raw.body,
-		})
+			body: stream,
+			duplex: "half",
+		} as RequestInit)
 	, {
 		prefix: "/api-reference",
 		context,
