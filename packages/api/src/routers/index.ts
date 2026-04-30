@@ -46,6 +46,7 @@ export const appRouter = {
 					proposal,
 					input.maxSlippageBps
 				);
+				console.log("[DEBUG] Route target:", routeResult.target);
 				route = {
 					target: routeResult.target,
 					tokenIn: routeResult.tokenIn,

@@ -77,7 +77,8 @@ export class UniswapBuilder {
 			(quoteOut * BigInt(10_000 - maxSlippageBps)) / 10_000n;
 
 		return {
-			target: this.routerAddress,
+			target:
+				(route.methodParameters as { to?: string }).to ?? this.routerAddress,
 			tokenIn: proposal.tokenIn,
 			amountIn,
 			calldata: route.methodParameters.calldata as `0x${string}`,
