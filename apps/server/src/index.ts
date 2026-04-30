@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { runTradeCycleInputSchema } from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
-import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -19,6 +18,21 @@ app.use(
 	})
 );
 
+// Debug middleware for POST requests
+app.use("/rpc/*", async (c, next) => {
+	if (c.req.method === "POST") {
+		console.log("[DEBUG] Request headers:", Object.fromEntries(c.req.raw.headers.entries()));
+		try {
+			const cloned = c.req.raw.clone();
+			const body = await cloned.text();
+			console.log("[DEBUG] Raw body:", body);
+		} catch (e) {
+			console.log("[DEBUG] Could not read body:", e);
+		}
+	}
+	await next();
+});
+
 // Health check
 app.get("/", (c) => c.text("OK"));
 
@@ -29,11 +43,26 @@ app.get("/diagnostics", async (c) => {
 });
 
 // Run trade cycle endpoint
-app.post(
-	"/rpc/runTradeCycle",
-	zValidator("json", runTradeCycleInputSchema),
-	async (c) => {
-		const input = c.req.valid("json");
+app.post("/rpc/runTradeCycle", async (c) => {
+	// Manual body parsing
+	let body: unknown;
+	try {
+		body = await c.req.json();
+		console.log("[DEBUG] Parsed body:", body);
+	} catch (e) {
+		console.log("[DEBUG] Failed to parse JSON body:", e);
+		return c.json({ error: "Invalid JSON body" }, 400);
+	}
+
+	// Validate with Zod
+	const parseResult = runTradeCycleInputSchema.safeParse(body);
+	if (!parseResult.success) {
+		console.log("[DEBUG] Validation failed:", parseResult.error.issues);
+		return c.json({ error: "Validation failed", issues: parseResult.error.issues }, 400);
+	}
+
+	const input = parseResult.data;
+	console.log("[DEBUG] Validated input:", input);
 		const cycleId = randomUUID();
 		const amountIn = BigInt(input.amountIn);
 
