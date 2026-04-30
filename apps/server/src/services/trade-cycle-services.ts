@@ -15,7 +15,7 @@ const chainIdToKeeperNetwork = (chainId: number): string => {
 		return "base";
 	}
 	if (chainId === 84_532) {
-		return "baseSepolia";
+		return "base-sepolia";
 	}
 	return String(chainId);
 };
@@ -59,11 +59,15 @@ export const createIntegrationServices = (): IntegrationServices => {
 		getState: async ({ amountIn, tokenIn, tokenOut }) => {
 			const tokenInAddress =
 				tokenIn === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC;
+			const tokenOutAddress =
+				tokenOut === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC;
 			const vaultBalanceWei = await chainState.getVaultBalance(tokenInAddress);
 			return {
 				vaultBalanceWei,
 				priceHint: `${tokenIn}/${tokenOut}`,
 				requestedAmountInWei: amountIn,
+				tokenIn: tokenInAddress,
+				tokenOut: tokenOutAddress,
 			};
 		},
 		generateProposal: async (state) => {
@@ -80,8 +84,8 @@ export const createIntegrationServices = (): IntegrationServices => {
 				{
 					vaultBalanceWei: state.vaultBalanceWei,
 					priceHint: state.priceHint,
-					tokenIn: env.TOKEN_WETH,
-					tokenOut: env.TOKEN_USDC,
+					tokenIn: state.tokenIn,
+					tokenOut: state.tokenOut,
 					amountInWei: state.requestedAmountInWei,
 				},
 				memory

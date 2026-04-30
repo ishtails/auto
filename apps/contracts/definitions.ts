@@ -3,937 +3,939 @@
 // Network: baseSepolia
 
 export const VAULT_ABI = [
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "admin",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "executor",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "initialMaxTradeSizeBps",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [],
-    "name": "AccessControlBadConfirmation",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "neededRole",
-        "type": "bytes32"
-      }
-    ],
-    "name": "AccessControlUnauthorizedAccount",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "EnforcedPause",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ExpectedPause",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "reason",
-        "type": "bytes"
-      }
-    ],
-    "name": "ExternalCallFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "needed",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "available",
-        "type": "uint256"
-      }
-    ],
-    "name": "InsufficientBalance",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAddress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAmount",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "bps",
-        "type": "uint256"
-      }
-    ],
-    "name": "InvalidBps",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "expected",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "actual",
-        "type": "uint256"
-      }
-    ],
-    "name": "InvalidEthValue",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "router",
-        "type": "address"
-      }
-    ],
-    "name": "RouterNotAllowed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "SafeERC20FailedOperation",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "TokenNotAllowed",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "maxAllowed",
-        "type": "uint256"
-      }
-    ],
-    "name": "TradeTooLarge",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "caller",
-        "type": "address"
-      }
-    ],
-    "name": "UnauthorizedExecutor",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "DepositETH",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "DepositToken",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "executor",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "name": "ExecutorUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "Paused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "maxTradeSizeBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "RiskParamsUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "previousAdminRole",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "newAdminRole",
-        "type": "bytes32"
-      }
-    ],
-    "name": "RoleAdminChanged",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "sender",
-        "type": "address"
-      }
-    ],
-    "name": "RoleGranted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "sender",
-        "type": "address"
-      }
-    ],
-    "name": "RoleRevoked",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "router",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "name": "RouterAllowlistUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "name": "TokenAllowlistUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "executor",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "target",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "tokenIn",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
-      }
-    ],
-    "name": "TradeExecuted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "Unpaused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "WithdrawETH",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "WithdrawToken",
-    "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "BPS_DENOMINATOR",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "DEFAULT_ADMIN_ROLE",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ETH_SENTINEL",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "EXECUTOR_ROLE",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "depositETH",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "depositToken",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "target",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "tokenIn",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amountIn",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes",
-            "name": "data",
-            "type": "bytes"
-          }
-        ],
-        "internalType": "struct Vault.TradeRequest",
-        "name": "request",
-        "type": "tuple"
-      }
-    ],
-    "name": "executeTrade",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      }
-    ],
-    "name": "getRoleAdmin",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "getVaultBalance",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "grantRole",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "hasRole",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "maxTradeSizeBps",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "pause",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "paused",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "callerConfirmation",
-        "type": "address"
-      }
-    ],
-    "name": "renounceRole",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "role",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "revokeRole",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "router",
-        "type": "address"
-      }
-    ],
-    "name": "routerAllowed",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "executor",
-        "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "name": "setExecutor",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "newMaxTradeSizeBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "setRiskParams",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "router",
-        "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "name": "setRouterAllowed",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "name": "setTokenAllowed",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes4",
-        "name": "interfaceId",
-        "type": "bytes4"
-      }
-    ],
-    "name": "supportsInterface",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "tokenAllowed",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "allowed",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "unpause",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      }
-    ],
-    "name": "withdrawETH",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      }
-    ],
-    "name": "withdrawToken",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
-  }
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "admin",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "executor",
+				type: "address",
+			},
+			{
+				internalType: "uint256",
+				name: "initialMaxTradeSizeBps",
+				type: "uint256",
+			},
+		],
+		stateMutability: "nonpayable",
+		type: "constructor",
+	},
+	{
+		inputs: [],
+		name: "AccessControlBadConfirmation",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+			{
+				internalType: "bytes32",
+				name: "neededRole",
+				type: "bytes32",
+			},
+		],
+		name: "AccessControlUnauthorizedAccount",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "EnforcedPause",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "ExpectedPause",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes",
+				name: "reason",
+				type: "bytes",
+			},
+		],
+		name: "ExternalCallFailed",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				internalType: "uint256",
+				name: "needed",
+				type: "uint256",
+			},
+			{
+				internalType: "uint256",
+				name: "available",
+				type: "uint256",
+			},
+		],
+		name: "InsufficientBalance",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidAddress",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidAmount",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "bps",
+				type: "uint256",
+			},
+		],
+		name: "InvalidBps",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "expected",
+				type: "uint256",
+			},
+			{
+				internalType: "uint256",
+				name: "actual",
+				type: "uint256",
+			},
+		],
+		name: "InvalidEthValue",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "ReentrancyGuardReentrantCall",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "router",
+				type: "address",
+			},
+		],
+		name: "RouterNotAllowed",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+		],
+		name: "SafeERC20FailedOperation",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+		],
+		name: "TokenNotAllowed",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "amountIn",
+				type: "uint256",
+			},
+			{
+				internalType: "uint256",
+				name: "maxAllowed",
+				type: "uint256",
+			},
+		],
+		name: "TradeTooLarge",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "caller",
+				type: "address",
+			},
+		],
+		name: "UnauthorizedExecutor",
+		type: "error",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "from",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+		],
+		name: "DepositETH",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "from",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+		],
+		name: "DepositToken",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "executor",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		name: "ExecutorUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+		],
+		name: "Paused",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "maxTradeSizeBps",
+				type: "uint256",
+			},
+		],
+		name: "RiskParamsUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				indexed: true,
+				internalType: "bytes32",
+				name: "previousAdminRole",
+				type: "bytes32",
+			},
+			{
+				indexed: true,
+				internalType: "bytes32",
+				name: "newAdminRole",
+				type: "bytes32",
+			},
+		],
+		name: "RoleAdminChanged",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "sender",
+				type: "address",
+			},
+		],
+		name: "RoleGranted",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "sender",
+				type: "address",
+			},
+		],
+		name: "RoleRevoked",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "router",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		name: "RouterAllowlistUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		name: "TokenAllowlistUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "executor",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "target",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "tokenIn",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amountIn",
+				type: "uint256",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "value",
+				type: "uint256",
+			},
+			{
+				indexed: false,
+				internalType: "bytes",
+				name: "data",
+				type: "bytes",
+			},
+		],
+		name: "TradeExecuted",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+		],
+		name: "Unpaused",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+		],
+		name: "WithdrawETH",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+		],
+		name: "WithdrawToken",
+		type: "event",
+	},
+	{
+		inputs: [],
+		name: "BPS_DENOMINATOR",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "DEFAULT_ADMIN_ROLE",
+		outputs: [
+			{
+				internalType: "bytes32",
+				name: "",
+				type: "bytes32",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "ETH_SENTINEL",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "EXECUTOR_ROLE",
+		outputs: [
+			{
+				internalType: "bytes32",
+				name: "",
+				type: "bytes32",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "depositETH",
+		outputs: [],
+		stateMutability: "payable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+		],
+		name: "depositToken",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				components: [
+					{
+						internalType: "address",
+						name: "target",
+						type: "address",
+					},
+					{
+						internalType: "address",
+						name: "tokenIn",
+						type: "address",
+					},
+					{
+						internalType: "uint256",
+						name: "amountIn",
+						type: "uint256",
+					},
+					{
+						internalType: "bytes",
+						name: "data",
+						type: "bytes",
+					},
+				],
+				internalType: "struct Vault.TradeRequest",
+				name: "request",
+				type: "tuple",
+			},
+		],
+		name: "executeTrade",
+		outputs: [],
+		stateMutability: "payable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+		],
+		name: "getRoleAdmin",
+		outputs: [
+			{
+				internalType: "bytes32",
+				name: "",
+				type: "bytes32",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+		],
+		name: "getVaultBalance",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+		],
+		name: "grantRole",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+		],
+		name: "hasRole",
+		outputs: [
+			{
+				internalType: "bool",
+				name: "",
+				type: "bool",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "maxTradeSizeBps",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "pause",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "paused",
+		outputs: [
+			{
+				internalType: "bool",
+				name: "",
+				type: "bool",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				internalType: "address",
+				name: "callerConfirmation",
+				type: "address",
+			},
+		],
+		name: "renounceRole",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes32",
+				name: "role",
+				type: "bytes32",
+			},
+			{
+				internalType: "address",
+				name: "account",
+				type: "address",
+			},
+		],
+		name: "revokeRole",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "router",
+				type: "address",
+			},
+		],
+		name: "routerAllowed",
+		outputs: [
+			{
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "executor",
+				type: "address",
+			},
+			{
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		name: "setExecutor",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "newMaxTradeSizeBps",
+				type: "uint256",
+			},
+		],
+		name: "setRiskParams",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "router",
+				type: "address",
+			},
+			{
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		name: "setRouterAllowed",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		name: "setTokenAllowed",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes4",
+				name: "interfaceId",
+				type: "bytes4",
+			},
+		],
+		name: "supportsInterface",
+		outputs: [
+			{
+				internalType: "bool",
+				name: "",
+				type: "bool",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+		],
+		name: "tokenAllowed",
+		outputs: [
+			{
+				internalType: "bool",
+				name: "allowed",
+				type: "bool",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "unpause",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+			{
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+		],
+		name: "withdrawETH",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+			{
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+		],
+		name: "withdrawToken",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		stateMutability: "payable",
+		type: "receive",
+	},
 ] as const;
 
 export const testnet = {
-	address: "0xF66b629BC3Bf35E9434C384cA95B725DE19B5703" as const,
+	address: "0x7d0c3f7Fc90530C8C44694f9F3e668Ba8387BcDe" as const,
 	abi: VAULT_ABI,
 };
 
-// Convenience export for current network
-export const VAULT_ADDRESS = "0xF66b629BC3Bf35E9434C384cA95B725DE19B5703" as const;
+export const localhost = {
+	address: "0xc664B5B530Fa058EB2B52557f4D35dDAb5C2C31c" as const,
+	abi: VAULT_ABI,
+};

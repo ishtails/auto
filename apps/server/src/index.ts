@@ -121,8 +121,8 @@ app.post("/rpc/runTradeCycle", async (c) => {
 			quoteOut: string;
 		} | null = null;
 
-		// Execute if approved and not dry run
-		if (!input.dryRun && riskDecision.decision === "APPROVE") {
+		// Build route if approved (for both dry run and execution)
+		if (riskDecision.decision === "APPROVE") {
 			console.log("[DEBUG] Step 5: Building route...");
 			const routeResult = await integrationServices.buildRoute(
 				proposal,
@@ -137,12 +137,17 @@ app.post("/rpc/runTradeCycle", async (c) => {
 				quoteOut: routeResult.quoteOut.toString(),
 			};
 
-			console.log("[DEBUG] Step 6: Executing trade...");
-			execution = await integrationServices.executeVaultTrade({
-				route: routeResult,
-				tokenOut: proposal.tokenOut,
-			});
-			console.log("[DEBUG] Execution:", execution);
+			// Execute only if not dry run
+			if (input.dryRun) {
+				console.log("[DEBUG] Step 6: Skipped (dry run)");
+			} else {
+				console.log("[DEBUG] Step 6: Executing trade...");
+				execution = await integrationServices.executeVaultTrade({
+					route: routeResult,
+					tokenOut: proposal.tokenOut,
+				});
+				console.log("[DEBUG] Execution:", execution);
+			}
 		}
 
 		console.log("[DEBUG] Step 7: Logging cycle...");
@@ -169,5 +174,7 @@ app.post("/rpc/runTradeCycle", async (c) => {
 		throw error;
 	}
 });
+
+console.log("environment:", env.ENVIRONMENT);
 
 export default app;

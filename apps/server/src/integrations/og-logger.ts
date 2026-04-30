@@ -76,7 +76,7 @@ export class OgLogger {
 
 			console.log(`[0G] Logged cycle to ${pointer}`);
 		} catch (error) {
-			console.log(`[0G] Logging failed (expected on local dev): ${error}`);
+			console.log(`[0G] Logging failed: ${error}`);
 		}
 
 		return pointer;
@@ -98,10 +98,7 @@ export class OgLogger {
 	 */
 	readRecentLogs(limit = 5): Promise<CycleLogRecord[]> {
 		// TODO: Implement 0G KV read when indexer supports query by key
-		// For now, return empty for local dev (0G testnet contracts not on Hardhat)
-		console.log(
-			`[0G] Memory query requested (limit: ${limit}) - returning empty for local dev`
-		);
+		console.log(`[0G] Memory query requested (limit: ${limit}) - not yet implemented`);
 		return Promise.resolve([]);
 	}
 }

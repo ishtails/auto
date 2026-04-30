@@ -41,6 +41,7 @@ export const env = createEnv({
 		NODE_ENV: z
 			.enum(["development", "production", "test"])
 			.default("development"),
+		ENVIRONMENT: z.enum(["local", "testnet", "mainnet"]).default("local"),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,

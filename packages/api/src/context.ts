@@ -16,6 +16,8 @@ export interface TradeCycleStateInput {
 export interface TradeCycleState {
 	priceHint?: string;
 	requestedAmountInWei: bigint;
+	tokenIn: string;
+	tokenOut: string;
 	vaultBalanceWei: bigint;
 }
 
