@@ -43,6 +43,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 	);
 	const logger = new OgLogger(
 		env.OG_INDEXER_RPC,
+		env.OG_KV_ENDPOINT,
 		env.OG_KV_STREAM_ID,
 		env.OG_RPC_URL,
 		env.OG_PRIVATE_KEY,
