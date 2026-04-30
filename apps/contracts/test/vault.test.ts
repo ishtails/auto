@@ -1,6 +1,5 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { describe, it } from "mocha";
 
 describe("Vault", () => {
 	const ONE_ETH = ethers.parseEther("1");
