@@ -8,13 +8,16 @@
   "files": {
     "ignoreUnknown": false,
     "includes": [
-      "**",
       "!**/.next",
       "!**/dist",
       "!**/.turbo",
       "!**/.nx",
+      "!**/artifacts",
+      "!**/cache",
+      "!**/typechain-types",
       "!**/dev-dist",
       "!**/.zed",
+      "!**/.cursor",
       "!**/.vscode",
       "!**/routeTree.gen.ts",
       "!**/src-tauri",

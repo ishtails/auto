@@ -1,0 +1,26 @@
+---
+description: UI + styling conventions for this repo
+alwaysApply: false
+---
+
+## General Design Rules
+- Always prefer standard design token (for colors, spacing, typography etc.) from global CSS variables over explicit values. Maintain consistency across the design.
+- Always prefer shadcn UI components over native HTML elements wherever possible (check shadcn registry and add using CLI if needed).
+- When using shadcn components, Avoid overwriting default styles unless the user advises to do so.
+- Avoid redundant styling tokens and tailwind classes; Optimize new components and remove unnecessary style tokens wherever possible.
+- Use semantic HTML elements for layout structure wherever possible.
+- Avoid hacky fixes, always try to look at the design as a whole and fix the root causes.
+
+## React Patterns
+- Implement the Headless Pattern: Extract complex interactions (keyboard nav, state) into custom hooks.
+- Favor Inversion of Control: Use slots and children instead of multiple boolean props to customize UI.
+- When creating custom components, follow the Compound Components pattern for modular UI sets and avoid prop-drilling.
+
+## TailwindCSS Patterns
+- Use tailwindcss @container queries for component-level responsiveness instead of viewport breakpoints.
+- Use the size-x utility for square dimensions (e.g. size-4 over w-4 h-4)
+- Use bg-linear-to-* instead of legacy bg-gradient-to-* syntax.
+- Utilize group and peer modifiers for state-based styling instead of custom JS or nested CSS.
+- Use has-[:] modifiers for complex state-based parent styling.
+- Enforce aspect-ratio utilities on all dynamic media to prevent Cumulative Layout Shift (CLS).
+- Move repetitive utility patterns into @layer components using @apply for high-frequency UI patterns.

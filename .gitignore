@@ -37,6 +37,12 @@ lerna-debug.log*
 .turbo
 .nx
 
+# Hardhat / contracts (generated)
+apps/contracts/.turbo
+apps/contracts/artifacts
+apps/contracts/cache
+apps/contracts/typechain-types
+
 # Better-T-Stack
 .alchemy
 

@@ -1,0 +1,26 @@
+---
+description: Default operating principles for this repo
+alwaysApply: true
+---
+
+
+## Before You Code
+
+- Read existing code in the area you're changing. Match its patterns.
+- Look for any installed skills that may be relevant to the task and use that to guide your work.
+- Write detailed specs upfront to reduce ambiguity.
+- If stuck or unsure: stop and ask. Don't guess architectural decisions.
+- Read `package.json` and other relevant files to understand the project configurations and available scripts.
+
+## While Coding
+
+- Minimal changes. Touch only what's necessary.
+- Fix root causes, not symptoms. No hacky or temporary fixes. If stuck in loop, stop and ask user to guide.
+- Do not guess, or assume specs. If there are multiple possible solutions, ask user to choose.
+- For non-trivial changes: pause and ask "is there a more elegant way?" If a fix feels hacky, redo it properly. Skip for simple fixes.
+
+## Before Done
+
+- Run linting, typechecking, and tests. Fix failures. (`bun check`, `bun check-types`)
+- Never mark complete without proving it works.
+- Ask: "Would a staff engineer approve this?"

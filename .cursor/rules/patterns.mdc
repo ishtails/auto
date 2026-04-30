@@ -1,0 +1,13 @@
+---
+description: Code organization & implementation patterns (repo-wide)
+alwaysApply: false
+---
+
+- Prefer reusable utilities over inline logic once used twice.
+- If you’re unsure about intent/spec, stop and ask the user. Don’t guess.
+- Prefer minimal, targeted changes; fix root causes.
+- Avoid redundant code: reuse existing helpers; consolidate similar logic.
+- Keep one primary domain concern per file; keep integration boundaries crisp.
+- Prefer `unknown` + narrowing; avoid `any` and avoid non-null assertions (`!`) at boundaries.
+- Keep imports at the top; avoid surprise re-exports
+- Before adding a new package or library, check current docs + examples; don’t invent APIs.
