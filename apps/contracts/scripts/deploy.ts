@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import hre from "hardhat";
 
 const parseAddressList = (raw: string | undefined): string[] => {
@@ -18,13 +20,10 @@ const defaultTokenSymbols = [
 	"VAULT_TOKEN_0G",
 ];
 
-async function main() {
+async function getConfig() {
 	const [deployer] = await hre.ethers.getSigners();
 	const admin = process.env.VAULT_ADMIN_ADDRESS ?? deployer.address;
 	const executor = process.env.KEEPERHUB_RELAYER_ADDRESS;
-	const maxTradeSizeBps = Number(
-		process.env.VAULT_MAX_TRADE_SIZE_BPS ?? "5000"
-	);
 
 	if (!executor) {
 		throw new Error("KEEPERHUB_RELAYER_ADDRESS is required.");
@@ -34,54 +33,99 @@ async function main() {
 	const namedTokens = defaultTokenSymbols
 		.map((key) => process.env[key])
 		.filter((value): value is string => Boolean(value));
-	const tokenAddresses = envTokens.length > 0 ? envTokens : namedTokens;
-	const routerAddresses = parseAddressList(process.env.VAULT_ALLOWED_ROUTERS);
+	const tokens = envTokens.length > 0 ? envTokens : namedTokens;
+	const routers = parseAddressList(process.env.VAULT_ALLOWED_ROUTERS);
 
-	if (tokenAddresses.length === 0) {
+	if (tokens.length === 0) {
 		throw new Error(
 			"Set VAULT_ALLOWED_TOKENS or named token env vars (VAULT_TOKEN_WETH, VAULT_TOKEN_USDC, VAULT_TOKEN_UNI, VAULT_TOKEN_LINK, VAULT_TOKEN_0G)."
 		);
 	}
-	if (routerAddresses.length === 0) {
+	if (routers.length === 0) {
 		throw new Error("VAULT_ALLOWED_ROUTERS is required.");
 	}
 
-	console.log("Deploying Vault...");
-	console.log("  Network:", hre.network.name);
-	console.log("  Deployer:", deployer.address);
-	console.log("  Admin:", admin);
-	console.log("  KeeperHub relayer:", executor);
-	console.log("  Max trade size bps:", maxTradeSizeBps);
-
-	const vault = await hre.ethers.deployContract("Vault", [
+	return {
+		deployer,
 		admin,
 		executor,
-		maxTradeSizeBps,
+		maxTradeSizeBps: Number(process.env.VAULT_MAX_TRADE_SIZE_BPS ?? "5000"),
+		tokens,
+		routers,
+	};
+}
+
+async function deploy(config: Awaited<ReturnType<typeof getConfig>>) {
+	console.log("Deploying Vault...");
+	console.log("  Network:", hre.network.name);
+	console.log("  Deployer:", config.deployer.address);
+	console.log("  Admin:", config.admin);
+	console.log("  KeeperHub relayer:", config.executor);
+	console.log("  Max trade size bps:", config.maxTradeSizeBps);
+
+	const vault = await hre.ethers.deployContract("Vault", [
+		config.admin,
+		config.executor,
+		config.maxTradeSizeBps,
 	]);
 	await vault.waitForDeployment();
+	return vault;
+}
 
-	const vaultAddress = await vault.getAddress();
-	console.log("✓ Vault deployed:", vaultAddress);
+async function setup(
+	vault: Awaited<ReturnType<typeof deploy>>,
+	config: Awaited<ReturnType<typeof getConfig>>
+) {
+	console.log("✓ Vault deployed:", await vault.getAddress());
 
-	// Explicit role assignment for KeeperHub relayer (idempotent with constructor grant).
-	const grantTx = await vault.setExecutor(executor, true);
-	await grantTx.wait();
-	console.log("  ✓ EXECUTOR_ROLE granted:", executor);
+	// Wait for RPC rate limits
+	console.log("  Waiting 5s for RPC rate limit...");
+	await sleep(5000);
 
-	for (const router of routerAddresses) {
-		const tx = await vault.setRouterAllowed(router, true);
+	// Grant executor role
+	try {
+		const tx = await vault.setExecutor(config.executor, true);
 		await tx.wait();
-		console.log("  ✓ Router allowlisted:", router);
+		console.log("  ✓ EXECUTOR_ROLE granted:", config.executor);
+	} catch (error) {
+		console.log("  ⚠ Executor grant failed (may already be granted):", error);
 	}
 
-	for (const token of tokenAddresses) {
-		const tx = await vault.setTokenAllowed(token, true);
-		await tx.wait();
-		console.log(
-			`  ✓ Token allowlisted + max-approved for routers: ${token} (${routerAddresses.length} router(s))`
-		);
+	await sleep(2000);
+
+	// Allowlist routers
+	for (const router of config.routers) {
+		try {
+			const tx = await vault.setRouterAllowed(router, true);
+			await tx.wait();
+			console.log("  ✓ Router allowlisted:", router);
+		} catch (error) {
+			console.log(`  ⚠ Router ${router} setup failed:`, error);
+		}
+		await sleep(1500);
 	}
 
+	await sleep(2000);
+
+	// Allowlist tokens
+	for (const token of config.tokens) {
+		try {
+			const tx = await vault.setTokenAllowed(token, true);
+			await tx.wait();
+			console.log(
+				`  ✓ Token allowlisted: ${token} (${config.routers.length} router(s))`
+			);
+		} catch (error) {
+			console.log(`  ⚠ Token ${token} setup failed:`, error);
+		}
+		await sleep(1500);
+	}
+}
+
+async function verify(
+	vaultAddress: string,
+	config: Awaited<ReturnType<typeof getConfig>>
+) {
 	const isLocal =
 		hre.network.name === "hardhat" || hre.network.name === "localhost";
 	if (!isLocal && process.env.ETHERSCAN_API_KEY) {
@@ -89,7 +133,11 @@ async function main() {
 		try {
 			await hre.run("verify:verify", {
 				address: vaultAddress,
-				constructorArguments: [admin, executor, maxTradeSizeBps],
+				constructorArguments: [
+					config.admin,
+					config.executor,
+					config.maxTradeSizeBps,
+				],
 			});
 			console.log("✓ Contract verified");
 		} catch (error: unknown) {
@@ -101,6 +149,74 @@ async function main() {
 			}
 		}
 	}
+}
+
+function generateDefinitions(
+	abi: unknown,
+	address: string,
+	networkName: string
+) {
+	let networkKey: string;
+	if (networkName === "baseSepolia" || networkName === "sepolia") {
+		networkKey = "testnet";
+	} else if (networkName === "base" || networkName === "mainnet") {
+		networkKey = "mainnet";
+	} else {
+		networkKey = "localhost";
+	}
+
+	const definitionsPath = path.join(process.cwd(), "definitions.ts");
+	const networkExport = `export const ${networkKey} = {
+	address: "${address}" as const,
+	abi: VAULT_ABI,
+};`;
+
+	let content = `// Auto-generated by deploy script
+// Generated on: ${new Date().toISOString()}
+// Network: ${networkName}
+
+export const VAULT_ABI = ${JSON.stringify(abi, null, 2)} as const;
+
+${networkExport}
+
+// Convenience export for current network
+export const VAULT_ADDRESS = "${address}" as const;
+`;
+
+	// Merge with existing if present
+	if (fs.existsSync(definitionsPath)) {
+		const existing = fs.readFileSync(definitionsPath, "utf8");
+		if (existing.includes(`${networkKey} = {`)) {
+			const regex = new RegExp(`export const ${networkKey} =\\s*{[^}]+};`, "s");
+			content = existing.replace(regex, networkExport);
+		} else {
+			content = existing.replace(
+				"// Convenience export for current network",
+				`${networkExport}\n\n// Convenience export for current network`
+			);
+		}
+	}
+
+	fs.writeFileSync(definitionsPath, content);
+	console.log("✓ Definitions written to:", definitionsPath);
+}
+
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+	const config = await getConfig();
+	const vault = await deploy(config);
+	await setup(vault, config);
+	await verify(await vault.getAddress(), config);
+
+	const vaultArtifact = await hre.artifacts.readArtifact("Vault");
+	generateDefinitions(
+		vaultArtifact.abi,
+		await vault.getAddress(),
+		hre.network.name
+	);
 }
 
 main().catch((error) => {
