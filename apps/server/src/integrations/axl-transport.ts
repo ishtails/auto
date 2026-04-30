@@ -40,16 +40,26 @@ export class AxlTransport {
 			clearTimeout(timeoutId);
 
 			if (!response.ok) {
-				console.log(`[AXL] recv returned ${response.status}, using default REJECT`);
-				return { decision: "REJECT", reason: `AXL recv failed: ${response.status}` };
+				console.log(
+					`[AXL] recv returned ${response.status}, using default REJECT`
+				);
+				return {
+					decision: "REJECT",
+					reason: `AXL recv failed: ${response.status}`,
+				};
 			}
 
-			const payload = (await response.json()) as AxlRecvResponse;
+			const payload = (await response.json()) as AxlRecvResponse | null;
 			console.log("[AXL] recv payload:", payload);
 
-			if (!payload.message) {
-				console.log("[AXL] No message received, using default APPROVE for testing");
-				return { decision: "APPROVE", reason: "No risk agent response (default approve for testing)" };
+			if (!payload?.message) {
+				console.log(
+					"[AXL] No message received, using default APPROVE for testing"
+				);
+				return {
+					decision: "APPROVE",
+					reason: "No risk agent response (default approve for testing)",
+				};
 			}
 
 			return riskDecisionSchema.parse(payload.message);
@@ -57,7 +67,10 @@ export class AxlTransport {
 			clearTimeout(timeoutId);
 			if (error instanceof Error && error.name === "AbortError") {
 				console.log("[AXL] recv timeout, using default APPROVE for testing");
-				return { decision: "APPROVE", reason: "Risk agent timeout (default approve for testing)" };
+				return {
+					decision: "APPROVE",
+					reason: "Risk agent timeout (default approve for testing)",
+				};
 			}
 			throw error;
 		}

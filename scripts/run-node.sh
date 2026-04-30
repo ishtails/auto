@@ -13,6 +13,48 @@ START_NODE="${START_NODE:-1}" # set to 0 to require an already-running node
 START_AXL="${START_AXL:-1}"   # set to 0 to require an already-running AXL node
 START_RISK_AGENT="${START_RISK_AGENT:-1}" # set to 0 to skip risk agent
 
+# Track background PIDs for cleanup
+BG_PIDS=()
+
+cleanup() {
+	echo ""
+	echo "→ Cleaning up background processes..."
+	
+	# Kill tracked background processes
+	for pid in "${BG_PIDS[@]:-}"; do
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			echo "  Killing PID $pid"
+			kill -TERM "$pid" 2>/dev/null || true
+			sleep 0.5
+			kill -KILL "$pid" 2>/dev/null || true
+		fi
+	done
+	
+	# Kill any lingering AXL node processes by pattern
+	if command -v pkill >/dev/null 2>&1; then
+		pkill -f "./node -config node-config" 2>/dev/null || true
+	fi
+	
+	# Also kill any lingering AXL nodes on our ports
+	if command -v kill-port >/dev/null 2>&1; then
+		for port in 9002 9012 7001 7002; do
+			kill-port "$port" 2>/dev/null || true
+		done
+	elif command -v lsof >/dev/null 2>&1; then
+		for port in 9002 9012 7001 7002; do
+			local pids
+			pids=$(lsof -t -i TCP:"$port" 2>/dev/null || true)
+			if [[ -n "$pids" ]]; then
+				kill -9 $pids 2>/dev/null || true
+			fi
+		done
+	fi
+	
+	echo "✓ Cleanup complete"
+}
+
+trap cleanup EXIT INT TERM
+
 is_rpc_up() {
 	curl -s -m 1 -X POST "$RPC_URL" \
 		-H "content-type: application/json" \
@@ -90,8 +132,9 @@ else
 	echo "→ Starting AXL trading node (background)..."
 	(
 		cd "$AXL_DIR"
-		exec ./node -config node-config.json 2>&1 | sed 's/^/[axl-trading] /'
+		./node -config node-config.json 2>&1 | sed 's/^/[axl-trading] /'
 	) &
+	BG_PIDS+=("$!")
 	echo "  AXL Trading PID: $!"
 fi
 
@@ -137,8 +180,9 @@ EOF
 	echo "→ Starting AXL risk node (background)..."
 	(
 		cd "$AXL_DIR"
-		exec ./node -config node-config-risk.json 2>&1 | sed 's/^/[axl-risk] /'
+		./node -config node-config-risk.json 2>&1 | sed 's/^/[axl-risk] /'
 	) &
+	BG_PIDS+=("$!")
 	echo "  AXL Risk PID: $!"
 fi
 
@@ -149,21 +193,24 @@ echo "✓ AXL trading node is up"
 wait_for_axl "$AXL_RISK_API_URL"
 echo "✓ AXL risk node is up"
 
+# Get peer IDs (for risk agent config)
+TRADING_PEER_ID=$(curl -s "$AXL_API_URL/topology" | grep -o '"our_public_key":"[^"]*"' | cut -d'"' -f4)
+RISK_PEER_ID=$(curl -s "$AXL_RISK_API_URL/topology" | grep -o '"our_public_key":"[^"]*"' | cut -d'"' -f4)
+
+if [[ -n "$TRADING_PEER_ID" && -n "$RISK_PEER_ID" ]]; then
+	echo "  Trading peer: $TRADING_PEER_ID"
+	echo "  Risk peer: $RISK_PEER_ID"
+fi
+
 # Start risk agent script
-if [[ "$START_RISK_AGENT" == "1" ]]; then
+if [[ "$START_RISK_AGENT" == "1" && -n "${TRADING_PEER_ID:-}" ]]; then
 	echo "→ Starting risk agent script (background)..."
 	(
 		cd "$ROOT_DIR"
-		# Get the trading peer ID for the risk agent to respond to
-		TRADING_PEER_ID=$(curl -s "$AXL_API_URL/topology" | grep -o '"our_public_key":"[^"]*"' | cut -d'"' -f4)
-		if [[ -n "$TRADING_PEER_ID" ]]; then
-			echo "  Risk agent will respond to trading peer: $TRADING_PEER_ID"
-			AXL_RISK_API_URL="$AXL_RISK_API_URL" TRADING_PEER_ID="$TRADING_PEER_ID" exec bun run scripts/risk-agent.ts 2>&1 | sed 's/^/[risk-agent] /'
-		else
-			echo "  Could not get trading peer ID, using default"
-			AXL_RISK_API_URL="$AXL_RISK_API_URL" exec bun run scripts/risk-agent.ts 2>&1 | sed 's/^/[risk-agent] /'
-		fi
+		echo "  Risk agent will respond to trading peer: $TRADING_PEER_ID"
+		AXL_RISK_API_URL="$AXL_RISK_API_URL" TRADING_PEER_ID="$TRADING_PEER_ID" bun run scripts/risk-agent.ts 2>&1 | sed 's/^/[risk-agent] /'
 	) &
+	BG_PIDS+=("$!")
 	echo "  Risk Agent PID: $!"
 fi
 
@@ -196,8 +243,15 @@ echo "→ Starting deploy watcher (background)..."
 	bunx --bun hardhat run scripts/deploy.ts --network localhost
 	echo "✓ Deploy complete"
 ) &
+BG_PIDS+=("$!")
+echo "  Deploy watcher PID: $!"
 
 echo "→ Starting Hardhat node (foreground)..."
-echo "  Tip: Ctrl+C to stop node (and end this script)."
+echo "  Tip: Ctrl+C to stop everything (AXL nodes, risk agent, hardhat)."
 cd "$CONTRACTS_DIR"
-exec bunx --bun hardhat node
+bunx --bun hardhat node &
+HARDHAT_PID=$!
+BG_PIDS+=("$HARDHAT_PID")
+
+# Wait for hardhat to finish (or be interrupted)
+wait "$HARDHAT_PID"

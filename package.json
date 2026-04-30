@@ -29,8 +29,9 @@
   "type": "module",
   "scripts": {
     "dev": "turbo dev",
+    "server": "bun --filter server dev",
     "build": "turbo build",
-    "node": "./scripts/run-node.sh",
+    "hardhat": "./scripts/run-node.sh",
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",

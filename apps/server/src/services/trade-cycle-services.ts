@@ -76,7 +76,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 			}),
 		sendToRiskAgent: async (proposal: TradeProposal) => {
 			await axl.sendProposal(proposal);
-			return axl.receiveDecision();
+			// Give risk agent time to poll and respond (polls every 2s)
+			await new Promise((resolve) => setTimeout(resolve, 2500));
+			return axl.receiveDecision(10_000);
 		},
 		evaluateRisk: (proposal, state) =>
 			Promise.resolve(
