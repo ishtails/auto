@@ -1,9 +1,6 @@
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
-import dotenv from "dotenv";
 import type { HardhatUserConfig } from "hardhat/config";
-
-dotenv.config({ path: "../../.env" });
 
 const config: HardhatUserConfig = {
 	solidity: {
