@@ -66,20 +66,36 @@ export const createIntegrationServices = (): IntegrationServices => {
 				requestedAmountInWei: amountIn,
 			};
 		},
-		generateProposal: (state) =>
-			llm.generateProposal({
-				vaultBalanceWei: state.vaultBalanceWei,
-				priceHint: state.priceHint,
-				tokenIn: env.TOKEN_WETH,
-				tokenOut: env.TOKEN_USDC,
-				amountInWei: state.requestedAmountInWei,
-			}),
+		generateProposal: async (state) => {
+			// Query memory from 0G (last 5 trades for context)
+			const recentLogs = await logger.readRecentLogs(5);
+			const memory = recentLogs.map((log) => ({
+				action: log.proposal.action,
+				reasoning: log.proposal.reasoning,
+				timestamp: log.timestamp,
+				status: log.riskDecision.decision,
+			}));
+
+			return llm.generateProposal(
+				{
+					vaultBalanceWei: state.vaultBalanceWei,
+					priceHint: state.priceHint,
+					tokenIn: env.TOKEN_WETH,
+					tokenOut: env.TOKEN_USDC,
+					amountInWei: state.requestedAmountInWei,
+				},
+				memory
+			);
+		},
 		sendToRiskAgent: async (proposal: TradeProposal) => {
 			// Skip AXL if mock mode enabled (AXL P2P not working locally)
 			if (env.MOCK_RISK_AGENT) {
 				console.log("[RiskAgent] Mock mode enabled, skipping AXL P2P");
 				// Return mock APPROVE response
-				return { decision: "APPROVE", reason: "Mock risk agent approval" } as RiskDecision;
+				return {
+					decision: "APPROVE",
+					reason: "Mock risk agent approval",
+				} as RiskDecision;
 			}
 
 			await axl.sendProposal(proposal);
@@ -101,14 +117,16 @@ export const createIntegrationServices = (): IntegrationServices => {
 
 			// Mock execution for local testing (KeeperHub needs real ETH on mainnet)
 			if (env.MOCK_EXECUTION) {
-				console.log("[Execution] Mock mode enabled, simulating successful transaction");
+				console.log(
+					"[Execution] Mock mode enabled, simulating successful transaction"
+				);
 				await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
-			return {
-				executionId: `mock_${Date.now()}`,
-				status: "completed",
-				txHash: `0x${"0".repeat(64)}`, // Mock tx hash
-				error: null,
-			};
+				return {
+					executionId: `mock_${Date.now()}`,
+					status: "completed",
+					txHash: `0x${"0".repeat(64)}`, // Mock tx hash
+					error: null,
+				};
 			}
 
 			return keeperhub.executeContractCall({

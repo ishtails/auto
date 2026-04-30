@@ -21,7 +21,10 @@ app.use(
 // Debug middleware for POST requests
 app.use("/rpc/*", async (c, next) => {
 	if (c.req.method === "POST") {
-		console.log("[DEBUG] Request headers:", Object.fromEntries(c.req.raw.headers.entries()));
+		console.log(
+			"[DEBUG] Request headers:",
+			Object.fromEntries(c.req.raw.headers.entries())
+		);
 		try {
 			const cloned = c.req.raw.clone();
 			const body = await cloned.text();
@@ -58,7 +61,10 @@ app.post("/rpc/runTradeCycle", async (c) => {
 	const parseResult = runTradeCycleInputSchema.safeParse(body);
 	if (!parseResult.success) {
 		console.log("[DEBUG] Validation failed:", parseResult.error.issues);
-		return c.json({ error: "Validation failed", issues: parseResult.error.issues }, 400);
+		return c.json(
+			{ error: "Validation failed", issues: parseResult.error.issues },
+			400
+		);
 	}
 
 	const input = parseResult.data;
@@ -162,7 +168,6 @@ app.post("/rpc/runTradeCycle", async (c) => {
 		console.error("[DEBUG] Error in trade cycle:", error);
 		throw error;
 	}
-	}
-);
+});
 
 export default app;

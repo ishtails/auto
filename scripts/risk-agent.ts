@@ -65,7 +65,9 @@ async function pollForProposals() {
 			return;
 		}
 
-		console.log(`[RiskAgent] Received raw data: ${responseText.slice(0, 100)}...`);
+		console.log(
+			`[RiskAgent] Received raw data: ${responseText.slice(0, 100)}...`
+		);
 
 		let proposal: TradeProposal;
 		try {
@@ -82,7 +84,9 @@ async function pollForProposals() {
 		console.log("[RiskAgent] Decision:", decision);
 
 		// Send decision back to trading peer as raw binary
-		console.log(`[RiskAgent] Sending decision to ${TRADING_PEER_ID.slice(0, 16)}...`);
+		console.log(
+			`[RiskAgent] Sending decision to ${TRADING_PEER_ID.slice(0, 16)}...`
+		);
 		const decisionBuffer = Buffer.from(JSON.stringify(decision));
 
 		const sendResponse = await fetch(`${RISK_AGENT_API_URL}/send`, {
@@ -94,7 +98,9 @@ async function pollForProposals() {
 		});
 
 		if (sendResponse.ok) {
-			console.log(`[RiskAgent] Sent decision to trading peer (${decisionBuffer.length} bytes)`);
+			console.log(
+				`[RiskAgent] Sent decision to trading peer (${decisionBuffer.length} bytes)`
+			);
 		} else {
 			console.log(
 				`[RiskAgent] Failed to send decision: ${sendResponse.status}`

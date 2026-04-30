@@ -33,7 +33,15 @@ export class LlmAgent {
 		this.ai = new GoogleGenAI({ apiKey });
 	}
 
-	async generateProposal(input: LlmStateInput): Promise<TradeProposal> {
+	async generateProposal(
+		input: LlmStateInput,
+		memory?: {
+			action: string;
+			reasoning: string;
+			timestamp: string;
+			status: string;
+		}[]
+	): Promise<TradeProposal> {
 		// Mock mode: return predefined response without calling Gemini
 		if (this.mockMode) {
 			console.log("[LLM] Mock mode enabled, returning predefined response");
@@ -46,13 +54,31 @@ export class LlmAgent {
 			};
 		}
 
+		// Build memory context if available
+		let memoryContext = "";
+		if (memory && memory.length > 0) {
+			memoryContext = [
+				"",
+				"=== YOUR TRADING MEMORY (Last 5 Trades) ===",
+				...memory.map(
+					(m, i) =>
+						`${i + 1}. [${m.timestamp}] Action: ${m.action} | Status: ${m.status} | Reasoning: ${m.reasoning}`
+				),
+				"",
+				"INSTRUCTIONS: Learn from your past trades. If your last trade failed due to slippage, be more conservative. If you just bought 5 minutes ago, consider holding. Use this history to make better decisions.",
+				"=== END MEMORY ===",
+			].join("\n");
+		}
+
 		const prompt = [
-			"You are a trading agent. Return strict JSON only.",
+			"You are an autonomous trading agent with memory. Return strict JSON only.",
 			`vaultBalanceWei=${input.vaultBalanceWei.toString()}`,
 			`tokenIn=${input.tokenIn}`,
 			`tokenOut=${input.tokenOut}`,
 			`amountInWei=${input.amountInWei.toString()}`,
 			`priceHint=${input.priceHint ?? "unknown"}`,
+			memoryContext,
+			"",
 			`schema={"action":"BUY|SELL|HOLD","tokenIn":"0x...","tokenOut":"0x...","amountInWei":"uint","reasoning":"string"}`,
 		].join("\n");
 

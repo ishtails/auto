@@ -27,7 +27,9 @@ export class OgLogger {
 		const provider = new ethers.JsonRpcProvider(rpcUrl);
 		this.signer = new ethers.Wallet(privateKey, provider);
 		// Normalize address to ensure proper checksum
-		const normalizedAddress = ethers.getAddress(flowContractAddress.toLowerCase());
+		const normalizedAddress = ethers.getAddress(
+			flowContractAddress.toLowerCase()
+		);
 		this.flowContract = FixedPriceFlow__factory.connect(
 			normalizedAddress,
 			this.signer
@@ -40,7 +42,9 @@ export class OgLogger {
 		try {
 			const [nodes, selectErr] = await this.indexer.selectNodes(1);
 			if (selectErr || !nodes || nodes.length === 0) {
-				console.log(`[0G] Node selection failed: ${selectErr ?? "no nodes"}, skipping log`);
+				console.log(
+					`[0G] Node selection failed: ${selectErr ?? "no nodes"}, skipping log`
+				);
 				return pointer;
 			}
 
@@ -64,7 +68,9 @@ export class OgLogger {
 
 			const [, latestErr] = await batcher.exec();
 			if (latestErr) {
-				console.log(`[0G] Latest pointer write failed: ${latestErr}, skipping log`);
+				console.log(
+					`[0G] Latest pointer write failed: ${latestErr}, skipping log`
+				);
 				return pointer;
 			}
 
@@ -83,5 +89,19 @@ export class OgLogger {
 		} catch {
 			return false;
 		}
+	}
+
+	/**
+	 * Read recent trade logs from 0G storage for agent memory
+	 * @param limit Maximum number of recent logs to retrieve
+	 * @returns Array of recent cycle log records
+	 */
+	readRecentLogs(limit = 5): Promise<CycleLogRecord[]> {
+		// TODO: Implement 0G KV read when indexer supports query by key
+		// For now, return empty for local dev (0G testnet contracts not on Hardhat)
+		console.log(
+			`[0G] Memory query requested (limit: ${limit}) - returning empty for local dev`
+		);
+		return Promise.resolve([]);
 	}
 }
