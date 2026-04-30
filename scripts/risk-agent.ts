@@ -54,9 +54,9 @@ async function pollForProposals() {
 			return;
 		}
 
-		const payload = (await response.json()) as { message?: TradeProposal };
+		const payload = (await response.json()) as { message?: TradeProposal } | null;
 
-		if (!payload.message) {
+		if (!payload || !payload.message) {
 			return;
 		}
 
