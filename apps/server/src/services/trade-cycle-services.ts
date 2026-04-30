@@ -31,7 +31,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 		chainId: env.CHAIN_ID,
 		recipientAddress: env.VAULT_ADDRESS,
 		routerAddress: env.UNISWAP_ROUTER_ADDRESS,
-		rpcUrl: env.CHAIN_RPC_URL,
+		// Use ROUTER_RPC_URL for mainnet routing (required for local dev)
+		// Falls back to CHAIN_RPC_URL if not set
+		rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
 		tokenInDecimals: env.TOKEN_WETH_DECIMALS,
 		tokenOutDecimals: env.TOKEN_USDC_DECIMALS,
 	});
