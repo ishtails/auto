@@ -44,47 +44,17 @@ export const rpcHandler = new RPCHandler(appRouter, {
 	],
 });
 
-// Handle RPC requests
+// RPC endpoint - use Hono's request and pass to oRPC
 app.all("/rpc/*", async (c) => {
-	console.log("[DEBUG] RPC request:", {
-		method: c.req.method,
-		path: c.req.path,
-		contentType: c.req.header("content-type"),
-	});
-
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	// Read body and create a fresh readable stream for oRPC
-	const bodyText = await c.req.text();
-	console.log("[DEBUG] Body text:", bodyText);
-
-	const stream = new ReadableStream({
-		start(controller) {
-			controller.enqueue(new TextEncoder().encode(bodyText));
-			controller.close();
-		},
-	});
-
-	const requestForOrpc = new Request(c.req.url, {
-		method: c.req.method,
-		headers: c.req.raw.headers,
-		body: stream,
-		duplex: "half", // Required for Request with body stream
-	} as RequestInit);
-
-	console.log("[DEBUG] Calling oRPC with readable stream body");
-
-	const result = await rpcHandler.handle(requestForOrpc, {
+	// Hono's c.req.raw is the native Request - pass it directly
+	const result = await rpcHandler.handle(c.req.raw, {
 		prefix: "/rpc",
 		context,
-	});
-
-	console.log("[DEBUG] oRPC result:", {
-		matched: result.matched,
-		status: result.response?.status,
 	});
 
 	if (result.matched) {
@@ -94,29 +64,14 @@ app.all("/rpc/*", async (c) => {
 	return c.notFound();
 });
 
-// Handle API reference requests
+// API reference endpoint
 app.all("/api-reference/*", async (c) => {
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	const bodyText = await c.req.text();
-	const stream = new ReadableStream({
-		start(controller) {
-			controller.enqueue(new TextEncoder().encode(bodyText));
-			controller.close();
-		},
-	});
-
-	const result = await apiHandler.handle(
-		new Request(c.req.url, {
-			method: c.req.method,
-			headers: c.req.raw.headers,
-			body: stream,
-			duplex: "half",
-		} as RequestInit)
-	, {
+	const result = await apiHandler.handle(c.req.raw, {
 		prefix: "/api-reference",
 		context,
 	});
