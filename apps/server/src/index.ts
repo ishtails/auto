@@ -45,13 +45,16 @@ export const rpcHandler = new RPCHandler(appRouter, {
 });
 
 // Handle RPC requests directly - preserves request body for oRPC
-app.use("/rpc/*", async (c) => {
+app.post("/rpc/*", async (c) => {
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	const result = await rpcHandler.handle(c.req.raw, {
+	// Clone the raw request to preserve body for oRPC
+	const clonedRequest = c.req.raw.clone() as Request;
+
+	const result = await rpcHandler.handle(clonedRequest, {
 		prefix: "/rpc",
 		context,
 	});
