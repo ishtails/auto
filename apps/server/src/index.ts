@@ -44,17 +44,20 @@ export const rpcHandler = new RPCHandler(appRouter, {
 	],
 });
 
-// Handle RPC requests directly - preserves request body for oRPC
-app.post("/rpc/*", async (c) => {
+// Handle RPC requests - use ALL to catch any method
+app.all("/rpc/*", async (c) => {
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	// Clone the raw request to preserve body for oRPC
-	const clonedRequest = c.req.raw.clone() as Request;
-
-	const result = await rpcHandler.handle(clonedRequest, {
+	const result = await rpcHandler.handle(
+		new Request(c.req.url, {
+			method: c.req.method,
+			headers: c.req.raw.headers,
+			body: c.req.raw.body,
+		})
+	, {
 		prefix: "/rpc",
 		context,
 	});
@@ -67,13 +70,19 @@ app.post("/rpc/*", async (c) => {
 });
 
 // Handle API reference requests
-app.use("/api-reference/*", async (c) => {
+app.all("/api-reference/*", async (c) => {
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	const result = await apiHandler.handle(c.req.raw, {
+	const result = await apiHandler.handle(
+		new Request(c.req.url, {
+			method: c.req.method,
+			headers: c.req.raw.headers,
+			body: c.req.raw.body,
+		})
+	, {
 		prefix: "/api-reference",
 		context,
 	});
