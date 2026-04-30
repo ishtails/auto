@@ -44,31 +44,42 @@ export const rpcHandler = new RPCHandler(appRouter, {
 	],
 });
 
-app.use("/*", async (c, next) => {
+// Handle RPC requests directly - preserves request body for oRPC
+app.use("/rpc/*", async (c) => {
 	const context = await createContext({
 		context: c,
 		services: integrationServices,
 	});
 
-	const rpcResult = await rpcHandler.handle(c.req.raw, {
+	const result = await rpcHandler.handle(c.req.raw, {
 		prefix: "/rpc",
 		context,
 	});
 
-	if (rpcResult.matched) {
-		return c.newResponse(rpcResult.response.body, rpcResult.response);
+	if (result.matched) {
+		return c.newResponse(result.response.body, result.response);
 	}
 
-	const apiResult = await apiHandler.handle(c.req.raw, {
+	return c.notFound();
+});
+
+// Handle API reference requests
+app.use("/api-reference/*", async (c) => {
+	const context = await createContext({
+		context: c,
+		services: integrationServices,
+	});
+
+	const result = await apiHandler.handle(c.req.raw, {
 		prefix: "/api-reference",
 		context,
 	});
 
-	if (apiResult.matched) {
-		return c.newResponse(apiResult.response.body, apiResult.response);
+	if (result.matched) {
+		return c.newResponse(result.response.body, result.response);
 	}
 
-	await next();
+	return c.notFound();
 });
 
 app.get("/", (c) => c.text("OK"));
