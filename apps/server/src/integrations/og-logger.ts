@@ -44,18 +44,20 @@ export class OgLogger {
 
 		const batcher = new Batcher(1, nodes, this.flowContract, this.rpcUrl);
 
-		const keyBytes = new TextEncoder().encode(pointer);
-		const valueBytes = new TextEncoder().encode(JSON.stringify(record));
-		batcher.streamDataBuilder.set(this.streamId, keyBytes, valueBytes);
+		// Use hex string format for streamId that 0G SDK expects
+		const streamIdHex = ethers.hexlify(ethers.toUtf8Bytes(this.streamId));
+		const keyBytes = ethers.toUtf8Bytes(pointer);
+		const valueBytes = ethers.toUtf8Bytes(JSON.stringify(record));
+		batcher.streamDataBuilder.set(streamIdHex, keyBytes, valueBytes);
 
 		const [, batchErr] = await batcher.exec();
 		if (batchErr) {
 			throw new Error(`0G batch execution failed: ${batchErr}`);
 		}
 
-		const latestKey = new TextEncoder().encode("latest");
-		const latestValue = new TextEncoder().encode(pointer);
-		batcher.streamDataBuilder.set(this.streamId, latestKey, latestValue);
+		const latestKey = ethers.toUtf8Bytes("latest");
+		const latestValue = ethers.toUtf8Bytes(pointer);
+		batcher.streamDataBuilder.set(streamIdHex, latestKey, latestValue);
 
 		const [, latestErr] = await batcher.exec();
 		if (latestErr) {
