@@ -22,7 +22,9 @@ async function main() {
 	const [deployer] = await hre.ethers.getSigners();
 	const admin = process.env.VAULT_ADMIN_ADDRESS ?? deployer.address;
 	const executor = process.env.KEEPERHUB_RELAYER_ADDRESS;
-	const maxTradeSizeBps = Number(process.env.VAULT_MAX_TRADE_SIZE_BPS ?? "5000");
+	const maxTradeSizeBps = Number(
+		process.env.VAULT_MAX_TRADE_SIZE_BPS ?? "5000"
+	);
 
 	if (!executor) {
 		throw new Error("KEEPERHUB_RELAYER_ADDRESS is required.");
@@ -80,7 +82,8 @@ async function main() {
 		);
 	}
 
-	const isLocal = hre.network.name === "hardhat" || hre.network.name === "localhost";
+	const isLocal =
+		hre.network.name === "hardhat" || hre.network.name === "localhost";
 	if (!isLocal && process.env.ETHERSCAN_API_KEY) {
 		console.log("Verifying contract...");
 		try {
