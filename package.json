@@ -28,7 +28,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "turbo dev",
+    "web:dev": "turbo -F web dev -F server dev:staging",
     "server": "bun --filter server dev",
     "build": "turbo build",
     "hardhat": "./scripts/localnode.sh",

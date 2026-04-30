@@ -20,6 +20,9 @@ const chainIdToKeeperNetwork = (chainId: number): string => {
 	return String(chainId);
 };
 
+const MEMORY_READ_TIMEOUT_MS = 2500;
+const LOG_WRITE_TIMEOUT_MS = 8000;
+
 export const createIntegrationServices = (): IntegrationServices => {
 	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
 	const axl = new AxlTransport(
@@ -80,7 +83,12 @@ export const createIntegrationServices = (): IntegrationServices => {
 		},
 		generateProposal: async (state) => {
 			// Query memory from 0G (last 5 trades for context)
-			const recentLogs = await logger.readRecentLogs(5);
+			const recentLogs = await Promise.race([
+				logger.readRecentLogs(5),
+				new Promise<[]>((resolve) =>
+					setTimeout(() => resolve([]), MEMORY_READ_TIMEOUT_MS)
+				),
+			]);
 			const memory = recentLogs.map((log) => ({
 				action: log.proposal.action,
 				reasoning: log.proposal.reasoning,
@@ -150,7 +158,15 @@ export const createIntegrationServices = (): IntegrationServices => {
 				value: encoded.value,
 			});
 		},
-		logCycle: (record) => logger.write(record),
+		logCycle: (record) =>
+			Promise.race([
+				logger.write(record),
+				new Promise<string>((resolve) => {
+					setTimeout(() => {
+						resolve(`${env.OG_KV_STREAM_ID}:${record.cycleId}`);
+					}, LOG_WRITE_TIMEOUT_MS);
+				}),
+			]),
 		getDiagnostics: async () => {
 			const keeperhubReachable = await fetch(
 				`${env.KEEPERHUB_BASE_URL}/api/health`
