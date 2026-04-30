@@ -26,8 +26,10 @@ export class OgLogger {
 		this.rpcUrl = rpcUrl;
 		const provider = new ethers.JsonRpcProvider(rpcUrl);
 		this.signer = new ethers.Wallet(privateKey, provider);
+		// Normalize address to ensure proper checksum
+		const normalizedAddress = ethers.getAddress(flowContractAddress.toLowerCase());
 		this.flowContract = FixedPriceFlow__factory.connect(
-			flowContractAddress,
+			normalizedAddress,
 			this.signer
 		);
 	}
