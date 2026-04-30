@@ -23,7 +23,6 @@ export const env = createEnv({
 		OG_RPC_URL: z.url(),
 		OG_INDEXER_RPC: z.url(),
 		OG_PRIVATE_KEY: z.string().min(1),
-		OG_KV_ENDPOINT: z.url(),
 		OG_KV_STREAM_ID: z.string().min(1),
 		OG_FLOW_CONTRACT: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 		NODE_ENV: z
