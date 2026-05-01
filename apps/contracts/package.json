@@ -1,13 +1,19 @@
 {
   "name": "@auto/contracts",
   "private": true,
+  "exports": {
+    "./factory-definitions": {
+      "types": "./factory-definitions.ts",
+      "default": "./factory-definitions.ts"
+    }
+  },
   "scripts": {
     "build": "hardhat compile",
     "check-types": "tsc -p tsconfig.json --noEmit",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.ts --network localhost",
-    "deploy:testnet": "hardhat run scripts/deploy.ts --network baseSepolia",
+    "deploy": "hardhat run scripts/deploy-factory.ts --network localhost",
+    "deploy:testnet": "hardhat run scripts/deploy-factory.ts --network baseSepolia",
     "clean": "hardhat clean"
   },
   "devDependencies": {

@@ -4,3 +4,5 @@ cache
 typechain-types
 coverage
 coverage.json
+factory-definitions.js
+factory-definitions.d.ts
