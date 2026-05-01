@@ -19,8 +19,19 @@ export const queryClient = new QueryClient({
 	}),
 });
 
+import { getAccessToken } from "@privy-io/react-auth";
+
 export const link = new RPCLink({
 	url: `${env.NEXT_PUBLIC_SERVER_URL}/rpc`,
+	headers: async () => {
+		const token = await getAccessToken();
+		if (token) {
+			return {
+				Authorization: `Bearer ${token}`,
+			};
+		}
+		return {};
+	},
 });
 
 export const client: AppRouterClient = createORPCClient(link);
