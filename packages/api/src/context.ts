@@ -1,4 +1,3 @@
-import type { Context as HonoContext } from "hono";
 import type {
 	CycleLogRecord,
 	KeeperExecutionResult,
@@ -28,41 +27,56 @@ export interface DiagnosticsResult {
 	ok: boolean;
 }
 
+export interface VaultConfig {
+	geminiSystemPrompt: string;
+	memoryPointer: string;
+	tokenIn: string;
+	tokenOut: string;
+	vaultAddress: string;
+}
+
 export interface IntegrationServices {
 	buildRoute: (
 		proposal: TradeProposal,
-		maxSlippageBps: number
+		maxSlippageBps: number,
+		vaultConfig?: VaultConfig
 	) => Promise<RouteBuildResult>;
 	evaluateRisk: (
 		proposal: TradeProposal,
-		state: TradeCycleState
+		state: TradeCycleState,
+		vaultConfig?: VaultConfig
 	) => Promise<RiskDecision>;
 	executeVaultTrade: (request: {
 		route: RouteBuildResult;
 		tokenOut: string;
+		vaultConfig?: VaultConfig;
 	}) => Promise<KeeperExecutionResult>;
-	generateProposal: (state: TradeCycleState) => Promise<TradeProposal>;
+	generateProposal: (
+		state: TradeCycleState,
+		vaultConfig?: VaultConfig
+	) => Promise<TradeProposal>;
 	getDiagnostics: () => Promise<DiagnosticsResult>;
-	getState: (input: TradeCycleStateInput) => Promise<TradeCycleState>;
-	getVaultBalances: () => Promise<{ usdcWei: bigint; wethWei: bigint }>;
-	logCycle: (record: CycleLogRecord) => Promise<string>;
+	getState: (
+		input: TradeCycleStateInput,
+		vaultConfig?: VaultConfig
+	) => Promise<TradeCycleState>;
+	getVaultBalances: (
+		vaultConfig?: VaultConfig
+	) => Promise<{ usdcWei: bigint; wethWei: bigint }>;
+	logCycle: (
+		record: CycleLogRecord,
+		vaultConfig?: VaultConfig
+	) => Promise<string>;
 	sendToRiskAgent: (proposal: TradeProposal) => Promise<RiskDecision>;
 }
 
-export interface CreateContextOptions {
-	context: HonoContext;
+export type AuthResult =
+	| { type: "user"; privyUserId: string; walletAddress: string | null }
+	| { type: "service" }
+	| null;
+
+export interface Context {
+	auth: AuthResult;
 	services: IntegrationServices;
+	session: null;
 }
-
-export function createContext({
-	context: _context,
-	services,
-}: CreateContextOptions) {
-	return {
-		auth: null,
-		session: null,
-		services,
-	};
-}
-
-export type Context = ReturnType<typeof createContext>;
