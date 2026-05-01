@@ -37,7 +37,11 @@
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
     "check": "ultracite fix",
-    "purge:modules": "./scripts/purge.sh"
+    "purge:modules": "./scripts/purge.sh",
+    "db:push:staging": "bun --filter server push:staging",
+    "db:push:local": "bun --filter server push:local",
+    "wipe:local": "bun --filter server wipe:local",
+    "wipe:staging": "bun --filter server wipe:staging"
   },
   "dependencies": {
     "@auto/env": "workspace:*",
