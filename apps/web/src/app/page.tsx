@@ -17,8 +17,10 @@ import {
 	LoaderCircle,
 	SendHorizontal,
 } from "lucide-react";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { formatUnits, parseUnits } from "viem";
+import logo from "@/assets/logo-dark.svg";
 import { orpc } from "@/utils/orpc";
 
 const WETH_DECIMALS = 18;
@@ -99,9 +101,20 @@ export default function Home() {
 			<div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-12 md:px-10 md:py-16">
 				<header className="border-[#55433d] border-b pb-8">
 					<div className="mb-6 flex items-center justify-between">
-						<p className="font-(family-name:--font-newsreader) text-4xl text-[#f5f5f2] italic">
-							vault.eth
-						</p>
+						<div className="flex items-center gap-3">
+							<Image
+								alt="auto.eth"
+								className="size-16 rounded-sm bg-muted"
+								height={96}
+								priority
+								src={logo}
+								unoptimized
+								width={32}
+							/>
+							<p className="font-(family-name:--font-newsreader) text-4xl text-[#f5f5f2] italic">
+								auto.eth
+							</p>
+						</div>
 						<div className="inline-flex items-center gap-2 rounded-full border border-[#55433d] bg-[#1f1f1f] px-3 py-1.5">
 							<CircleDot className="h-3.5 w-3.5" color={status.color} />
 							<span className="font-manrope text-[#dbc1b9] text-xs uppercase tracking-[0.08em]">
@@ -267,6 +280,14 @@ export default function Home() {
 										{result.decision}
 									</span>
 								</p>
+								{result.decision === "REJECT" && result.reason && (
+									<p>
+										<span className="text-[#a38c85]">reason:</span>{" "}
+										<span className="text-[#ffb4ab]/80 italic">
+											{result.reason}
+										</span>
+									</p>
+								)}
 								<p>
 									<span className="text-[#a38c85]">executionId:</span>{" "}
 									{result.executionId ?? "—"}

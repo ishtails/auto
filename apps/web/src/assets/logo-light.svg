@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <!-- Bot Head: Cream container with subtle outline -->
+  <rect x="40" y="50" width="120" height="80" rx="8" fill="#e2e2e2" stroke="#a38c85" stroke-width="1" />
+  
+  <!-- Bot Eyes: Deep terracotta for high contrast against light surface -->
+  <rect x="76" y="80" width="12" height="20" rx="2" fill="#99462a" />
+  <rect x="112" y="80" width="12" height="20" rx="2" fill="#99462a" />
+  
+  <!-- Base Line: Dark charcoal for grounding -->
+  <rect x="30" y="150" width="140" height="2" fill="#303030" />
+</svg>

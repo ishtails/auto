@@ -23,19 +23,32 @@ export const appRouter = {
 	runTradeCycle: publicProcedure
 		.input(runTradeCycleInputSchema)
 		.handler(async ({ context, input }) => {
+			console.log("[DEBUG] runTradeCycle input:", input);
 			const cycleId = randomUUID();
 			const amountIn = BigInt(input.amountIn);
+
+			console.log("[DEBUG] Step 1: Getting state...");
 			const state = await context.services.getState({
 				amountIn,
 				tokenIn: "WETH",
 				tokenOut: "USDC",
 			});
+			console.log("[DEBUG] State:", state);
+
+			console.log("[DEBUG] Step 2: Generating proposal...");
 			const proposal = await context.services.generateProposal(state);
+			console.log("[DEBUG] Proposal:", proposal);
+
+			console.log("[DEBUG] Step 3: Evaluating risk...");
 			const deterministicRisk = await context.services.evaluateRisk(
 				proposal,
 				state
 			);
+			console.log("[DEBUG] Deterministic risk:", deterministicRisk);
+
+			console.log("[DEBUG] Step 4: Sending to AXL...");
 			const axlRisk = await context.services.sendToRiskAgent(proposal);
+			console.log("[DEBUG] AXL risk:", axlRisk);
 			const riskDecision =
 				deterministicRisk.decision === "APPROVE" &&
 				axlRisk.decision === "APPROVE"
@@ -44,11 +57,13 @@ export const appRouter = {
 							decision: "REJECT" as const,
 							reason: `deterministic=${deterministicRisk.decision}:${deterministicRisk.reason};axl=${axlRisk.decision}:${axlRisk.reason}`,
 						};
+			console.log("[DEBUG] Final risk decision:", riskDecision);
 
 			let execution: KeeperExecutionResult | null = null;
 			let route: CycleLogRecord["route"] = null;
 
 			if (!input.dryRun && riskDecision.decision === "APPROVE") {
+				console.log("[DEBUG] Step 5: Building route...");
 				const routeResult = await context.services.buildRoute(
 					proposal,
 					input.maxSlippageBps
@@ -62,12 +77,16 @@ export const appRouter = {
 					amountOutMinimum: routeResult.amountOutMinimum.toString(),
 					quoteOut: routeResult.quoteOut.toString(),
 				};
+
+				console.log("[DEBUG] Step 6: Executing trade...");
 				execution = await context.services.executeVaultTrade({
 					route: routeResult,
 					tokenOut: proposal.tokenOut,
 				});
+				console.log("[DEBUG] Execution:", execution);
 			}
 
+			console.log("[DEBUG] Step 7: Logging cycle...");
 			const logPointer = await context.services.logCycle({
 				cycleId,
 				timestamp: new Date().toISOString(),
@@ -77,10 +96,20 @@ export const appRouter = {
 				execution,
 				route,
 			});
+			console.log("[DEBUG] Log pointer:", logPointer);
+
+			let displayReason: string | null = null;
+			if (riskDecision.decision === "REJECT") {
+				displayReason =
+					deterministicRisk.decision === "REJECT"
+						? deterministicRisk.reason
+						: axlRisk.reason;
+			}
 
 			return {
 				cycleId,
 				decision: riskDecision.decision,
+				reason: displayReason,
 				executionId: execution?.executionId ?? null,
 				txHash: execution?.txHash ?? null,
 				logPointer,

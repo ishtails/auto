@@ -17,7 +17,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-	title: "vault.eth",
+	title: "auto.eth",
 	description: "Autonomous trading vault control surface",
 };
 
