@@ -18,7 +18,7 @@ RUN bun run server:compile
 FROM debian:bookworm-slim AS release
 WORKDIR /app
 
-COPY --from=builder /app/apps/server/out/server .
+COPY --from=builder /app/apps/server/server .
 
 ENV NODE_ENV=production
 EXPOSE 3000
