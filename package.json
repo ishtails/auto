@@ -30,6 +30,7 @@
   "scripts": {
     "web:dev": "turbo -F server dev:staging -F web dev",
     "server": "bun --filter server dev",
+    "server:compile": "bun --filter server compile",
     "build": "turbo build",
     "hardhat": "./scripts/localnode.sh",
     "check-types": "turbo check-types",
