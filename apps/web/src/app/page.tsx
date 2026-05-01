@@ -10,6 +10,7 @@ import {
 import { Checkbox } from "@auto/ui/components/checkbox";
 import { Input } from "@auto/ui/components/input";
 import { Label } from "@auto/ui/components/label";
+import { usePrivy } from "@privy-io/react-auth";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	ArrowRightLeft,
@@ -18,6 +19,7 @@ import {
 	SendHorizontal,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatUnits, parseUnits } from "viem";
 import logo from "@/assets/logo-dark.svg";
@@ -96,6 +98,8 @@ export default function Home() {
 			).toFixed(2)
 		: "—";
 
+	const { ready, authenticated, login, logout } = usePrivy();
+
 	return (
 		<main className="min-h-screen bg-[#131313] text-[#e2e2e2]">
 			<div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-12 md:px-10 md:py-16">
@@ -115,11 +119,41 @@ export default function Home() {
 								auto.eth
 							</p>
 						</div>
-						<div className="inline-flex items-center gap-2 rounded-full border border-[#55433d] bg-[#1f1f1f] px-3 py-1.5">
-							<CircleDot className="h-3.5 w-3.5" color={status.color} />
-							<span className="font-manrope text-[#dbc1b9] text-xs uppercase tracking-[0.08em]">
-								API {status.label}
-							</span>
+						<div className="flex items-center gap-4">
+							<div className="inline-flex items-center gap-2 rounded-full border border-[#55433d] bg-[#1f1f1f] px-3 py-1.5">
+								<CircleDot className="h-3.5 w-3.5" color={status.color} />
+								<span className="font-manrope text-[#dbc1b9] text-xs uppercase tracking-[0.08em]">
+									API {status.label}
+								</span>
+							</div>
+
+							{ready && (
+								<div className="flex items-center gap-3">
+									{authenticated ? (
+										<div className="flex items-center gap-3">
+											<Link href="/vaults">
+												<Button className="h-9 rounded-md border border-[#55433d] bg-[#2a2a2a] text-[#e2e2e2] hover:bg-[#333333]">
+													My Agents
+												</Button>
+											</Link>
+											<Button
+												className="h-9 rounded-md border-[#55433d] text-[#dbc1b9] hover:bg-[#ffb4ab] hover:text-[#1b1b1b]"
+												onClick={logout}
+												variant="outline"
+											>
+												Logout
+											</Button>
+										</div>
+									) : (
+										<Button
+											className="h-9 rounded-md bg-[#d97757] text-[#1b1b1b] hover:bg-[#ffb59e]"
+											onClick={login}
+										>
+											Login
+										</Button>
+									)}
+								</div>
+							)}
 						</div>
 					</div>
 					<h1 className="font-(family-name:--font-newsreader) max-w-4xl text-4xl text-[#f5f5f2] leading-tight md:text-6xl">
