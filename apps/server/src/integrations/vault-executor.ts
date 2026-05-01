@@ -1,26 +1,6 @@
 import type { RouteBuildResult } from "@auto/api/trade-types";
+import { USER_VAULT_ABI } from "@auto/contracts/factory-definitions";
 import { encodeFunctionData } from "viem";
-
-const vaultAbi = [
-	{
-		type: "function",
-		name: "executeTrade",
-		stateMutability: "payable",
-		inputs: [
-			{
-				name: "request",
-				type: "tuple",
-				components: [
-					{ name: "target", type: "address" },
-					{ name: "tokenIn", type: "address" },
-					{ name: "amountIn", type: "uint256" },
-					{ name: "data", type: "bytes" },
-				],
-			},
-		],
-		outputs: [],
-	},
-] as const;
 
 export interface EncodedVaultCall {
 	abi: string;
@@ -35,31 +15,41 @@ export const encodeVaultExecuteTrade = (
 	vaultAddress: string,
 	route: RouteBuildResult
 ): EncodedVaultCall => {
-	const request = {
-		target: route.target as `0x${string}`,
+	if (route.value !== 0n) {
+		throw new Error(
+			"UserVault.executeSwap is nonpayable (route.value must be 0)"
+		);
+	}
+
+	const params = {
 		tokenIn: route.tokenIn as `0x${string}`,
+		tokenOut: route.tokenOut as `0x${string}`,
 		amountIn: route.amountIn,
-		data: route.calldata,
+		amountOutMinimum: route.amountOutMinimum,
+		swapCalldata: route.calldata,
+		deadline: route.deadline,
 	};
 
 	const calldata = encodeFunctionData({
-		abi: vaultAbi,
-		functionName: "executeTrade",
-		args: [request],
+		abi: USER_VAULT_ABI,
+		functionName: "executeSwap",
+		args: [params],
 	});
 
 	// Serialize for JSON API (convert BigInt to string)
-	const requestForJson = {
-		...request,
-		amountIn: request.amountIn.toString(),
+	const paramsForJson = {
+		...params,
+		amountIn: params.amountIn.toString(),
+		amountOutMinimum: params.amountOutMinimum.toString(),
+		deadline: params.deadline.toString(),
 	};
 
 	return {
-		abi: JSON.stringify(vaultAbi),
+		abi: JSON.stringify(USER_VAULT_ABI),
 		calldata,
-		functionArgs: JSON.stringify([requestForJson]),
-		functionName: "executeTrade",
+		functionArgs: JSON.stringify([paramsForJson]),
+		functionName: "executeSwap",
 		target: vaultAddress,
-		value: route.value.toString(),
+		value: "0",
 	};
 };

@@ -30,16 +30,6 @@ export const createIntegrationServices = (): IntegrationServices => {
 		env.AXL_RISK_API_URL,
 		env.AXL_RISK_PEER_ID
 	);
-	const uniswap = new UniswapBuilder({
-		chainId: env.CHAIN_ID,
-		recipientAddress: env.VAULT_ADDRESS,
-		routerAddress: env.UNISWAP_ROUTER_ADDRESS,
-		// Use ROUTER_RPC_URL for mainnet routing (required for local dev)
-		// Falls back to CHAIN_RPC_URL if not set
-		rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
-		tokenInDecimals: env.TOKEN_WETH_DECIMALS,
-		tokenOutDecimals: env.TOKEN_USDC_DECIMALS,
-	});
 	const keeperhub = new KeeperHubClient(
 		env.KEEPERHUB_BASE_URL,
 		env.KEEPERHUB_API_KEY
@@ -52,7 +42,6 @@ export const createIntegrationServices = (): IntegrationServices => {
 		env.OG_PRIVATE_KEY,
 		env.OG_FLOW_CONTRACT
 	);
-	const chainState = new ChainStateClient(env.CHAIN_RPC_URL, env.VAULT_ADDRESS);
 
 	const allowedTokens = new Set([
 		env.TOKEN_WETH.toLowerCase(),
@@ -60,12 +49,21 @@ export const createIntegrationServices = (): IntegrationServices => {
 	]);
 
 	return {
-		getState: async ({ amountIn, tokenIn, tokenOut }) => {
+		getState: async ({ amountIn, tokenIn, tokenOut }, vaultConfig) => {
 			const tokenInAddress =
-				tokenIn === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC;
+				vaultConfig?.tokenIn ??
+				(tokenIn === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC);
 			const tokenOutAddress =
-				tokenOut === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC;
-			const vaultBalanceWei = await chainState.getVaultBalance(tokenInAddress);
+				vaultConfig?.tokenOut ??
+				(tokenOut === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC);
+			const vaultAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
+			const chainStateDynamic = new ChainStateClient(
+				env.CHAIN_RPC_URL,
+				vaultAddress
+			);
+
+			const vaultBalanceWei =
+				await chainStateDynamic.getVaultBalance(tokenInAddress);
 			return {
 				vaultBalanceWei,
 				priceHint: `${tokenIn}/${tokenOut}`,
@@ -74,17 +72,34 @@ export const createIntegrationServices = (): IntegrationServices => {
 				tokenOut: tokenOutAddress,
 			};
 		},
-		getVaultBalances: async () => {
+		getVaultBalances: async (vaultConfig) => {
+			const vaultAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
+			const chainStateDynamic = new ChainStateClient(
+				env.CHAIN_RPC_URL,
+				vaultAddress
+			);
+			const tokenWeth = vaultConfig ? vaultConfig.tokenIn : env.TOKEN_WETH;
+			const tokenUsdc = vaultConfig ? vaultConfig.tokenOut : env.TOKEN_USDC;
+
 			const [wethWei, usdcWei] = await Promise.all([
-				chainState.getVaultBalance(env.TOKEN_WETH),
-				chainState.getVaultBalance(env.TOKEN_USDC),
+				chainStateDynamic.getVaultBalance(tokenWeth),
+				chainStateDynamic.getVaultBalance(tokenUsdc),
 			]);
 			return { wethWei, usdcWei };
 		},
-		generateProposal: async (state) => {
-			// Query memory from 0G (last 5 trades for context)
+		generateProposal: async (state, vaultConfig) => {
+			const streamId = vaultConfig?.memoryPointer ?? env.OG_KV_STREAM_ID;
+			const dynamicLogger = new OgLogger(
+				env.OG_INDEXER_RPC,
+				env.OG_KV_ENDPOINT,
+				streamId,
+				env.OG_RPC_URL,
+				env.OG_PRIVATE_KEY,
+				env.OG_FLOW_CONTRACT
+			);
+
 			const recentLogs = await Promise.race([
-				logger.readRecentLogs(5),
+				dynamicLogger.readRecentLogs(5).catch(() => []),
 				new Promise<[]>((resolve) =>
 					setTimeout(() => resolve([]), MEMORY_READ_TIMEOUT_MS)
 				),
@@ -108,10 +123,8 @@ export const createIntegrationServices = (): IntegrationServices => {
 			);
 		},
 		sendToRiskAgent: async (proposal: TradeProposal) => {
-			// Skip AXL if mock mode enabled (AXL P2P not working locally)
 			if (env.MOCK_RISK_AGENT) {
 				console.log("[RiskAgent] Mock mode enabled, skipping AXL P2P");
-				// Return mock APPROVE response
 				return {
 					decision: "APPROVE",
 					reason: "Mock risk agent approval",
@@ -119,10 +132,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 			}
 
 			await axl.sendProposal(proposal);
-			// Poll for response (risk agent polls every 2s, we poll for up to 10s)
 			return axl.receiveDecision(10_000);
 		},
-		evaluateRisk: (proposal, state) =>
+		evaluateRisk: (proposal, state, _vaultConfig) =>
 			Promise.resolve(
 				evaluateRisk(proposal, {
 					vaultBalanceWei: state.vaultBalanceWei,
@@ -130,21 +142,31 @@ export const createIntegrationServices = (): IntegrationServices => {
 					maxDrawdownBps: 1_000n,
 				})
 			),
-		buildRoute: (proposal, maxSlippageBps) =>
-			uniswap.buildRoute(proposal, maxSlippageBps),
-		executeVaultTrade: async ({ route }) => {
-			const encoded = encodeVaultExecuteTrade(env.VAULT_ADDRESS, route);
+		buildRoute: (proposal, maxSlippageBps, vaultConfig) => {
+			const recipientAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
+			const dynamicUniswap = new UniswapBuilder({
+				chainId: env.CHAIN_ID,
+				recipientAddress,
+				routerAddress: env.UNISWAP_ROUTER_ADDRESS,
+				rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
+				tokenInDecimals: env.TOKEN_WETH_DECIMALS,
+				tokenOutDecimals: env.TOKEN_USDC_DECIMALS,
+			});
+			return dynamicUniswap.buildRoute(proposal, maxSlippageBps);
+		},
+		executeVaultTrade: async ({ route, tokenOut: _tokenOut, vaultConfig }) => {
+			const vaultAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
+			const encoded = encodeVaultExecuteTrade(vaultAddress, route);
 
-			// Mock execution for local testing (KeeperHub needs real ETH on mainnet)
 			if (env.MOCK_EXECUTION) {
 				console.log(
 					"[Execution] Mock mode enabled, simulating successful transaction"
 				);
-				await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
+				await new Promise((resolve) => setTimeout(resolve, 1000));
 				return {
 					executionId: `mock_${Date.now()}`,
 					status: "completed",
-					txHash: `0x${"0".repeat(64)}`, // Mock tx hash
+					txHash: `0x${"0".repeat(64)}`,
 					error: null,
 				};
 			}
@@ -158,15 +180,25 @@ export const createIntegrationServices = (): IntegrationServices => {
 				value: encoded.value,
 			});
 		},
-		logCycle: (record) =>
-			Promise.race([
-				logger.write(record),
+		logCycle: (record, vaultConfig) => {
+			const streamId = vaultConfig?.memoryPointer ?? env.OG_KV_STREAM_ID;
+			const dynamicLogger = new OgLogger(
+				env.OG_INDEXER_RPC,
+				env.OG_KV_ENDPOINT,
+				streamId,
+				env.OG_RPC_URL,
+				env.OG_PRIVATE_KEY,
+				env.OG_FLOW_CONTRACT
+			);
+			return Promise.race([
+				dynamicLogger.write(record),
 				new Promise<string>((resolve) => {
 					setTimeout(() => {
-						resolve(`${env.OG_KV_STREAM_ID}:${record.cycleId}`);
+						resolve(`${streamId}:${record.cycleId}`);
 					}, LOG_WRITE_TIMEOUT_MS);
 				}),
-			]),
+			]);
+		},
 		getDiagnostics: async () => {
 			const keeperhubReachable = await fetch(
 				`${env.KEEPERHUB_BASE_URL}/api/health`

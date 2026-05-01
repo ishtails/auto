@@ -76,15 +76,19 @@ export class UniswapBuilder {
 		const amountOutMinimum =
 			(quoteOut * BigInt(10_000 - maxSlippageBps)) / 10_000n;
 
+		const deadlineSeconds = BigInt(Math.floor(Date.now() / 1000) + 900);
+
 		return {
 			target:
 				(route.methodParameters as { to?: string }).to ?? this.routerAddress,
 			tokenIn: proposal.tokenIn,
+			tokenOut: proposal.tokenOut,
 			amountIn,
 			calldata: route.methodParameters.calldata as `0x${string}`,
 			value: BigInt(route.methodParameters.value ?? "0"),
 			amountOutMinimum,
 			quoteOut,
+			deadline: deadlineSeconds,
 		};
 	}
 }
