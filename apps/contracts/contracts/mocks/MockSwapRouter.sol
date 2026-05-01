@@ -38,4 +38,22 @@ contract MockSwapRouter {
 		require(amountOut >= minAmountOut, "INSUFFICIENT_OUTPUT");
 		IERC20(tokenOut).safeTransfer(recipient, amountOut);
 	}
+
+	/// @dev Deterministic swap: caller specifies exact output amount.
+	///      Used by UserVault tests for precise fee calculations.
+	function swap(
+		address tokenIn,
+		address tokenOut,
+		uint256 amountIn,
+		uint256 amountOut,
+		address recipient
+	) external returns (uint256) {
+		if (shouldRevert) {
+			revert ForcedRevert();
+		}
+
+		IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+		IERC20(tokenOut).safeTransfer(recipient, amountOut);
+		return amountOut;
+	}
 }
