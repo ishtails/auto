@@ -30,6 +30,7 @@ export const env = createEnv({
 		TOKEN_USDC_DECIMALS: z.coerce.number().int().min(0).max(36).default(6),
 		KEEPERHUB_API_KEY: z.string().min(1),
 		KEEPERHUB_BASE_URL: z.url(),
+		KEEPERHUB_RELAYER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 		AXL_TRADING_API_URL: z.url(),
 		AXL_RISK_API_URL: z.url(),
 		AXL_RISK_PEER_ID: z.string().min(1),
@@ -43,6 +44,15 @@ export const env = createEnv({
 			.enum(["development", "production", "test"])
 			.default("development"),
 		ENVIRONMENT: z.enum(["local", "testnet", "mainnet"]).default("local"),
+
+		DATABASE_URL: z.url(),
+		PRIVY_APP_ID: z.string().min(1),
+		PRIVY_APP_SECRET: z.string().min(1),
+		PRIVY_JWT_VERIFICATION_KEY: z.string().optional(),
+		SERVER_DEPLOY_SECRET: z.string().min(1),
+		DEPLOYER_PRIVATE_KEY: z.string().min(1),
+		FACTORY_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+		USER_VAULT_IMPLEMENTATION_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
