@@ -12,7 +12,10 @@ import {
 	listVaultsOutputSchema,
 	prepareVaultDeploymentSchema,
 } from "@auto/api/vault-types";
-import { VAULT_FACTORY_ABI } from "@auto/contracts/factory-definitions";
+import {
+	VAULT_FACTORY_ABI,
+	VAULT_FACTORY_ADDRESS,
+} from "@auto/contracts/factory-definitions";
 import { env } from "@auto/env/server";
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
@@ -119,7 +122,7 @@ export const appRouter = {
 			});
 
 			const nonce = await publicClient.readContract({
-				address: env.FACTORY_ADDRESS as `0x${string}`,
+				address: VAULT_FACTORY_ADDRESS,
 				abi: VAULT_FACTORY_ABI,
 				functionName: "getNonce",
 				args: [ownerAddress as `0x${string}`],
@@ -133,7 +136,7 @@ export const appRouter = {
 					name: "AutoVaultFactory",
 					version: "1",
 					chainId: env.CHAIN_ID,
-					verifyingContract: env.FACTORY_ADDRESS as `0x${string}`,
+					verifyingContract: VAULT_FACTORY_ADDRESS,
 				},
 				types: {
 					DeployConfig: [
@@ -165,7 +168,7 @@ export const appRouter = {
 			return {
 				defaults: {
 					chainId: env.CHAIN_ID,
-					factoryAddress: env.FACTORY_ADDRESS,
+					factoryAddress: VAULT_FACTORY_ADDRESS,
 					swapRouterAddress: env.UNISWAP_ROUTER_ADDRESS,
 					tokenIn: env.TOKEN_WETH,
 					tokenOut: env.TOKEN_USDC,
@@ -440,13 +443,12 @@ export const appRouter = {
 			const { deployQueue } = await import("./services/deploy-queue");
 
 			// Create vault record
-			const { env } = await import("@auto/env/server");
 			const vaultResult = await db
 				.insert(vaults)
 				.values({
 					userId: user.id,
 					ownerAddress: walletAddress,
-					factoryAddress: input.factoryAddress ?? env.FACTORY_ADDRESS,
+					factoryAddress: input.factoryAddress ?? VAULT_FACTORY_ADDRESS,
 					chainId: 84_532, // Base Sepolia
 					status: "queued",
 				})

@@ -51,8 +51,6 @@ export const env = createEnv({
 		PRIVY_JWT_VERIFICATION_KEY: z.string().optional(),
 		SERVER_DEPLOY_SECRET: z.string().min(1),
 		DEPLOYER_PRIVATE_KEY: z.string().min(1),
-		FACTORY_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-		USER_VAULT_IMPLEMENTATION_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,

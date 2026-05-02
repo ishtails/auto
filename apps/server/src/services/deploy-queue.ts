@@ -1,4 +1,7 @@
-import { VAULT_FACTORY_ABI } from "@auto/contracts/factory-definitions";
+import {
+	VAULT_FACTORY_ABI,
+	VAULT_FACTORY_ADDRESS,
+} from "@auto/contracts/factory-definitions";
 import { env } from "@auto/env/server";
 import { Queue, Worker } from "bunqueue/client";
 import { eq } from "drizzle-orm";
@@ -51,9 +54,6 @@ export const deployWorker = new Worker(
 
 		console.log(`[DeployWorker] Processing job for deployment ${deploymentId}`);
 
-		if (!isAddress(env.FACTORY_ADDRESS)) {
-			throw new Error(`Invalid FACTORY_ADDRESS: ${env.FACTORY_ADDRESS}`);
-		}
 		if (!isAddress(env.UNISWAP_ROUTER_ADDRESS)) {
 			throw new Error(
 				`Invalid UNISWAP_ROUTER_ADDRESS: ${env.UNISWAP_ROUTER_ADDRESS}`
@@ -84,7 +84,7 @@ export const deployWorker = new Worker(
 		// 1) Send deploy tx
 		const txHash = await walletClient.writeContract({
 			chain: null,
-			address: env.FACTORY_ADDRESS as `0x${string}`,
+			address: VAULT_FACTORY_ADDRESS,
 			abi: VAULT_FACTORY_ABI,
 			functionName: "deployVault",
 			args: [
