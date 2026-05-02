@@ -15,35 +15,27 @@ export const riskDecisionSchema = z.object({
 	reason: z.string().min(1),
 });
 
-export const runTradeCycleInputSchema = z
-	.object({
-		amountIn: z.string().regex(/^\d+$/).optional(),
-		maxSlippageBps: z.number().int().min(1).max(2000).optional(),
-		dryRun: z.boolean().optional().default(false),
-		vaultId: z.string().uuid().optional(),
-	})
-	.superRefine((value, context) => {
-		if (!value.vaultId) {
-			if (!value.amountIn) {
-				context.addIssue({
-					code: "custom",
-					message: "amountIn is required when vaultId is not provided",
-					path: ["amountIn"],
-				});
-			}
-			if (value.maxSlippageBps === undefined) {
-				context.addIssue({
-					code: "custom",
-					message: "maxSlippageBps is required when vaultId is not provided",
-					path: ["maxSlippageBps"],
-				});
-			}
-		}
-	});
+/** Trade cycles always target a user-owned vault (`vaultId`). */
+export const runTradeCycleInputSchema = z.object({
+	vaultId: z.string().uuid(),
+	amountIn: z.string().regex(/^\d+$/).optional(),
+	maxSlippageBps: z.number().int().min(1).max(2000).optional(),
+	dryRun: z.boolean().optional().default(false),
+});
+
+export const runTradeCycleOutputSchema = z.object({
+	cycleId: z.string().uuid(),
+	decision: z.enum(["APPROVE", "REJECT"]),
+	reason: z.string().nullable(),
+	executionId: z.string().nullable(),
+	txHash: z.string().nullable(),
+	logPointer: z.string(),
+});
 
 export type TradeProposal = z.infer<typeof tradeProposalSchema>;
 export type RiskDecision = z.infer<typeof riskDecisionSchema>;
 export type RunTradeCycleInput = z.infer<typeof runTradeCycleInputSchema>;
+export type RunTradeCycleOutput = z.infer<typeof runTradeCycleOutputSchema>;
 
 export interface RouteBuildResult {
 	amountIn: bigint;

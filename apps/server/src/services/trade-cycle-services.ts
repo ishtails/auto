@@ -50,16 +50,11 @@ export const createIntegrationServices = (): IntegrationServices => {
 
 	return {
 		getState: async ({ amountIn, tokenIn, tokenOut }, vaultConfig) => {
-			const tokenInAddress =
-				vaultConfig?.tokenIn ??
-				(tokenIn === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC);
-			const tokenOutAddress =
-				vaultConfig?.tokenOut ??
-				(tokenOut === "WETH" ? env.TOKEN_WETH : env.TOKEN_USDC);
-			const vaultAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
+			const tokenInAddress = vaultConfig.tokenIn;
+			const tokenOutAddress = vaultConfig.tokenOut;
 			const chainStateDynamic = new ChainStateClient(
 				env.CHAIN_RPC_URL,
-				vaultAddress
+				vaultConfig.vaultAddress
 			);
 
 			const vaultBalanceWei =
@@ -73,22 +68,19 @@ export const createIntegrationServices = (): IntegrationServices => {
 			};
 		},
 		getVaultBalances: async (vaultConfig) => {
-			const vaultAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
 			const chainStateDynamic = new ChainStateClient(
 				env.CHAIN_RPC_URL,
-				vaultAddress
+				vaultConfig.vaultAddress
 			);
-			const tokenWeth = vaultConfig ? vaultConfig.tokenIn : env.TOKEN_WETH;
-			const tokenUsdc = vaultConfig ? vaultConfig.tokenOut : env.TOKEN_USDC;
 
 			const [wethWei, usdcWei] = await Promise.all([
-				chainStateDynamic.getVaultBalance(tokenWeth),
-				chainStateDynamic.getVaultBalance(tokenUsdc),
+				chainStateDynamic.getVaultBalance(vaultConfig.tokenIn),
+				chainStateDynamic.getVaultBalance(vaultConfig.tokenOut),
 			]);
 			return { wethWei, usdcWei };
 		},
 		generateProposal: async (state, vaultConfig) => {
-			const streamId = vaultConfig?.memoryPointer ?? env.OG_KV_STREAM_ID;
+			const streamId = vaultConfig.memoryPointer;
 			const dynamicLogger = new OgLogger(
 				env.OG_INDEXER_RPC,
 				env.OG_KV_ENDPOINT,
@@ -143,10 +135,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 				})
 			),
 		buildRoute: (proposal, maxSlippageBps, vaultConfig) => {
-			const recipientAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
 			const dynamicUniswap = new UniswapBuilder({
 				chainId: env.CHAIN_ID,
-				recipientAddress,
+				recipientAddress: vaultConfig.vaultAddress,
 				routerAddress: env.UNISWAP_ROUTER_ADDRESS,
 				rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
 				tokenInDecimals: env.TOKEN_WETH_DECIMALS,
@@ -155,8 +146,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 			return dynamicUniswap.buildRoute(proposal, maxSlippageBps);
 		},
 		executeVaultTrade: async ({ route, tokenOut: _tokenOut, vaultConfig }) => {
-			const vaultAddress = vaultConfig?.vaultAddress ?? env.VAULT_ADDRESS;
-			const encoded = encodeVaultExecuteTrade(vaultAddress, route);
+			const encoded = encodeVaultExecuteTrade(vaultConfig.vaultAddress, route);
 
 			if (env.MOCK_EXECUTION) {
 				console.log(
@@ -181,7 +171,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 			});
 		},
 		logCycle: (record, vaultConfig) => {
-			const streamId = vaultConfig?.memoryPointer ?? env.OG_KV_STREAM_ID;
+			const streamId = vaultConfig.memoryPointer;
 			const dynamicLogger = new OgLogger(
 				env.OG_INDEXER_RPC,
 				env.OG_KV_ENDPOINT,

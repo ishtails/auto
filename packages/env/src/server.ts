@@ -22,7 +22,6 @@ export const env = createEnv({
 		CHAIN_ID: z.coerce.number().int().positive(),
 		CHAIN_RPC_URL: z.url(),
 		ROUTER_RPC_URL: z.url().optional(),
-		VAULT_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 		UNISWAP_ROUTER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 		TOKEN_WETH: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 		TOKEN_WETH_DECIMALS: z.coerce.number().int().min(0).max(36).default(18),

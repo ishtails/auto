@@ -6,6 +6,11 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/// @dev Canonical WETH `deposit()` — credits `msg.sender` with WETH equal to `msg.value`
+interface IWETH {
+	function deposit() external payable;
+}
+
 /// @title UserVault — Non-custodial trading vault with post-swap protocol fees
 /// @notice Deployed as EIP-1167 minimal proxy via VaultFactory. Owner controls
 ///         withdrawals (fee-free) and agent permissions. Authorized agent executes

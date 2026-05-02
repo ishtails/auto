@@ -4,6 +4,7 @@ import {
 	type CycleLogRecord,
 	type KeeperExecutionResult,
 	runTradeCycleInputSchema,
+	runTradeCycleOutputSchema,
 } from "@auto/api/trade-types";
 import {
 	createVaultDeploymentSchema,
@@ -87,15 +88,6 @@ export const appRouter = {
 	// Health check - simple status
 	healthCheck: publicProcedure.handler(() => "OK"),
 
-	// Public vault balances (uses env default vault)
-	vaultBalances: publicProcedure.handler(async ({ context }) => {
-		const balances = await context.services.getVaultBalances();
-		return {
-			wethWei: balances.wethWei.toString(),
-			usdcWei: balances.usdcWei.toString(),
-		};
-	}),
-
 	// Integration diagnostics
 	integrationDiagnostics: publicProcedure.handler(async ({ context }) =>
 		context.services.getDiagnostics()
@@ -178,52 +170,50 @@ export const appRouter = {
 			};
 		}),
 
-	// Override runTradeCycle with vault-aware implementation
-	runTradeCycle: publicProcedure
+	// Trade cycle: authenticated, always scoped to a user-owned vault
+	runTradeCycle: authedProcedure
 		.input(runTradeCycleInputSchema)
+		.output(runTradeCycleOutputSchema)
 		.handler(async ({ context, input }) => {
+			if (context.auth.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Vault execution requires user auth",
+				});
+			}
+
 			const cycleId = crypto.randomUUID();
-			let vaultConfig: VaultConfig | undefined;
 			let amountInInput = input.amountIn;
 			let maxSlippageBps = input.maxSlippageBps;
 
-			if (input.vaultId) {
-				if (!context.auth || context.auth.type !== "user") {
-					throw new ORPCError("UNAUTHORIZED", {
-						message: "Vault execution requires user auth",
+			const { vaultAddress, profile } = await getOwnedActiveVault(
+				context.auth.privyUserId,
+				input.vaultId
+			);
+
+			const vaultConfig: VaultConfig = {
+				vaultAddress,
+				tokenIn: profile.tokenIn,
+				tokenOut: profile.tokenOut,
+				geminiSystemPrompt: profile.geminiSystemPrompt,
+				memoryPointer: profile.memoryPointer,
+			};
+
+			if (maxSlippageBps === undefined) {
+				maxSlippageBps = profile.maxSlippageBps;
+			}
+			if (!amountInInput) {
+				const chainState = new ChainStateClient(
+					env.CHAIN_RPC_URL,
+					vaultAddress
+				);
+				const balanceWei = await chainState.getVaultBalance(profile.tokenIn);
+				const derived = deriveAmountInWei(balanceWei, profile.maxTradeBps);
+				if (derived <= 0n) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: "Vault has no available balance to trade",
 					});
 				}
-
-				const { vaultAddress, profile } = await getOwnedActiveVault(
-					context.auth.privyUserId,
-					input.vaultId
-				);
-
-				vaultConfig = {
-					vaultAddress,
-					tokenIn: profile.tokenIn,
-					tokenOut: profile.tokenOut,
-					geminiSystemPrompt: profile.geminiSystemPrompt,
-					memoryPointer: profile.memoryPointer,
-				};
-
-				if (maxSlippageBps === undefined) {
-					maxSlippageBps = profile.maxSlippageBps;
-				}
-				if (!amountInInput) {
-					const chainState = new ChainStateClient(
-						env.CHAIN_RPC_URL,
-						vaultAddress
-					);
-					const balanceWei = await chainState.getVaultBalance(profile.tokenIn);
-					const derived = deriveAmountInWei(balanceWei, profile.maxTradeBps);
-					if (derived <= 0n) {
-						throw new ORPCError("BAD_REQUEST", {
-							message: "Vault has no available balance to trade",
-						});
-					}
-					amountInInput = derived.toString();
-				}
+				amountInInput = derived.toString();
 			}
 
 			const effectiveAmountIn = requireString(amountInInput, "amountIn");

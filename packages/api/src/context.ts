@@ -39,33 +39,33 @@ export interface IntegrationServices {
 	buildRoute: (
 		proposal: TradeProposal,
 		maxSlippageBps: number,
-		vaultConfig?: VaultConfig
+		vaultConfig: VaultConfig
 	) => Promise<RouteBuildResult>;
 	evaluateRisk: (
 		proposal: TradeProposal,
 		state: TradeCycleState,
-		vaultConfig?: VaultConfig
+		vaultConfig: VaultConfig
 	) => Promise<RiskDecision>;
 	executeVaultTrade: (request: {
 		route: RouteBuildResult;
 		tokenOut: string;
-		vaultConfig?: VaultConfig;
+		vaultConfig: VaultConfig;
 	}) => Promise<KeeperExecutionResult>;
 	generateProposal: (
 		state: TradeCycleState,
-		vaultConfig?: VaultConfig
+		vaultConfig: VaultConfig
 	) => Promise<TradeProposal>;
 	getDiagnostics: () => Promise<DiagnosticsResult>;
 	getState: (
 		input: TradeCycleStateInput,
-		vaultConfig?: VaultConfig
+		vaultConfig: VaultConfig
 	) => Promise<TradeCycleState>;
 	getVaultBalances: (
-		vaultConfig?: VaultConfig
+		vaultConfig: VaultConfig
 	) => Promise<{ usdcWei: bigint; wethWei: bigint }>;
 	logCycle: (
 		record: CycleLogRecord,
-		vaultConfig?: VaultConfig
+		vaultConfig: VaultConfig
 	) => Promise<string>;
 	sendToRiskAgent: (proposal: TradeProposal) => Promise<RiskDecision>;
 }
