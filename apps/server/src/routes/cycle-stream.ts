@@ -1,10 +1,11 @@
 import type { CycleLogRecord } from "@auto/api/trade-types";
-import { env } from "@auto/env/server";
 import { ORPCError } from "@orpc/server";
+import { desc, eq } from "drizzle-orm";
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { resolveAuth } from "../auth/middleware";
-import { OgLogger } from "../integrations/og-logger";
+import { db } from "../db";
+import { vaultCycleLogs } from "../db/schema";
 import { getOwnedActiveVault } from "../router";
 
 const clampInt = (value: number, min: number, max: number): number =>
@@ -36,42 +37,33 @@ export function registerCycleStreamRoutes(app: Hono) {
 
 		const vaultId = c.req.param("vaultId");
 
-		const { profile } = await getOwnedActiveVault(auth.privyUserId, vaultId);
-		const streamId = profile.memoryPointer;
-		if (!streamId) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "Vault stream not configured (memoryPointer missing)",
-			});
-		}
+		await getOwnedActiveVault(auth.privyUserId, vaultId);
 
 		const limit = readNumberQuery(c.req.query("limit"), 25, 1, 100);
 		const pollMs = readNumberQuery(c.req.query("pollMs"), 3000, 1000, 30_000);
-
-		const logger = new OgLogger(
-			env.OG_INDEXER_RPC,
-			env.OG_KV_ENDPOINT,
-			streamId,
-			env.OG_RPC_URL,
-			env.OG_PRIVATE_KEY,
-			env.OG_FLOW_CONTRACT
-		);
 
 		c.header("Cache-Control", "no-store");
 
 		return streamSSE(c, async (stream) => {
 			const seen = new Set<string>();
-			const READ_TIMEOUT_MS = 2500;
 
-			const readRecentLogsBestEffort = async () =>
-				await Promise.race([
-					logger.readRecentLogs(limit).catch(() => []),
-					new Promise<CycleLogRecord[]>((resolve) => {
-						setTimeout(() => resolve([]), READ_TIMEOUT_MS);
-					}),
-				]);
+			const readRecentLogsFromDb = async (): Promise<CycleLogRecord[]> => {
+				const rows = await db
+					.select({ record: vaultCycleLogs.record })
+					.from(vaultCycleLogs)
+					.where(eq(vaultCycleLogs.vaultId, vaultId))
+					.orderBy(desc(vaultCycleLogs.occurredAt))
+					.limit(limit);
+
+				const records: CycleLogRecord[] = [];
+				for (const row of rows) {
+					records.push(row.record as CycleLogRecord);
+				}
+				return records;
+			};
 
 			const sendHistory = async () => {
-				const recent = await readRecentLogsBestEffort();
+				const recent = await readRecentLogsFromDb();
 				const ordered = [...recent].reverse();
 				for (const record of ordered) {
 					seen.add(record.cycleId);
@@ -91,7 +83,7 @@ export function registerCycleStreamRoutes(app: Hono) {
 			for (;;) {
 				await stream.sleep(pollMs);
 
-				const recent = await readRecentLogsBestEffort();
+				const recent = await readRecentLogsFromDb();
 				const ordered = [...recent].reverse();
 
 				const newRecords: CycleLogRecord[] = [];

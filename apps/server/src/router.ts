@@ -24,7 +24,13 @@ import { createPublicClient, hashTypedData, http, isAddress } from "viem";
 import type { z } from "zod";
 import { getUserWalletAddress } from "./auth/middleware";
 import { db } from "./db";
-import { agentProfiles, users, vaultDeployments, vaults } from "./db/schema";
+import {
+	agentProfiles,
+	users,
+	vaultCycleLogs,
+	vaultDeployments,
+	vaults,
+} from "./db/schema";
 import { ChainStateClient } from "./integrations/chain-state";
 
 const deriveAmountInWei = (balanceWei: bigint, maxTradeBps: number): bigint => {
@@ -82,6 +88,35 @@ const debugLog = (cycleId: string, message: string, data?: unknown) => {
 	console.log(prefix, message);
 };
 
+const cacheCycleLogToDb = async ({
+	vaultId,
+	record,
+	logPointer,
+	cycleId,
+}: {
+	vaultId: string;
+	record: CycleLogRecord;
+	logPointer: string;
+	cycleId: string;
+}) => {
+	try {
+		await db
+			.insert(vaultCycleLogs)
+			.values({
+				vaultId,
+				cycleId: record.cycleId,
+				occurredAt: new Date(record.timestamp),
+				decision: record.riskDecision.decision,
+				txHash: record.execution?.txHash ?? null,
+				logPointer,
+				record,
+			})
+			.onConflictDoNothing();
+	} catch (error) {
+		debugLog(cycleId, "db cache write failed", error);
+	}
+};
+
 export async function getOwnedActiveVault(
 	privyUserId: string,
 	vaultId: string
@@ -120,7 +155,7 @@ export async function getOwnedActiveVault(
 	}
 
 	const vaultAddress = vault.vaultAddress as `0x${string}`;
-	return { vaultAddress, profile };
+	return { vaultAddress, profile, vaultDbId: vault.id };
 }
 
 async function runTradeCycleInternal({
@@ -213,6 +248,7 @@ async function runTradeCycleInternal({
 		tokenIn: proposal.tokenIn,
 		tokenOut: proposal.tokenOut,
 		amountInWei: proposal.amountInWei,
+		reasoning: proposal.reasoning,
 	});
 
 	const deterministicRisk = await context.services.evaluateRisk(
@@ -275,23 +311,30 @@ async function runTradeCycleInternal({
 		}
 	}
 
-	const logPointer = await context.services.logCycle(
-		sanitizeCycleLogRecord({
-			cycleId,
-			timestamp: new Date().toISOString(),
-			input: {
-				...input,
-				amountIn: effectiveAmountIn,
-				maxSlippageBps: effectiveMaxSlippageBps,
-			},
-			proposal,
-			riskDecision,
-			execution,
-			route,
-		}),
-		vaultConfig
-	);
+	const cycleRecord = sanitizeCycleLogRecord({
+		cycleId,
+		timestamp: new Date().toISOString(),
+		input: {
+			...input,
+			amountIn: effectiveAmountIn,
+			maxSlippageBps: effectiveMaxSlippageBps,
+		},
+		proposal,
+		riskDecision,
+		execution,
+		route,
+	});
+
+	const logPointer = await context.services.logCycle(cycleRecord, vaultConfig);
 	debugLog(cycleId, "cycle logged", { logPointer });
+
+	// Best-effort DB cache for fast history queries when 0G reads are slow/unavailable.
+	await cacheCycleLogToDb({
+		vaultId: input.vaultId,
+		record: cycleRecord,
+		logPointer,
+		cycleId,
+	});
 
 	let displayReason: string | null = null;
 	if (riskDecision.decision === "REJECT") {

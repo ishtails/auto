@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
 	index,
 	integer,
+	jsonb,
 	pgEnum,
 	pgTable,
 	text,
@@ -146,4 +147,35 @@ export const vaultDeploymentsRelations = relations(
 			references: [vaults.id],
 		}),
 	})
+);
+
+// ─── Vault Cycle Logs (0G read cache) ─────────────────────────────
+
+export const vaultCycleLogs = pgTable(
+	"vault_cycle_logs",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		vaultId: uuid("vault_id")
+			.notNull()
+			.references(() => vaults.id),
+		cycleId: text("cycle_id").notNull(),
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		decision: text("decision").notNull(),
+		txHash: text("tx_hash"),
+		logPointer: text("log_pointer"),
+		record: jsonb("record").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		unique("vault_cycle_logs_vault_cycle_unique").on(
+			table.vaultId,
+			table.cycleId
+		),
+		index("vault_cycle_logs_vault_occurred_at_idx").on(
+			table.vaultId,
+			table.occurredAt
+		),
+	]
 );

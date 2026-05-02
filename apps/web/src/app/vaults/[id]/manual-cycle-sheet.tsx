@@ -113,18 +113,6 @@ export function ManualCycleSheet() {
 			{
 				onSuccess: async (result) => {
 					setLastResult(result);
-					if (result.decision === "APPROVE") {
-						toast.success(
-							dryRun ? "Dry run approved (no tx)" : "Cycle executed",
-							{
-								description: result.txHash ?? result.reason ?? undefined,
-							}
-						);
-					} else {
-						toast.message("Trade cycle rejected", {
-							description: result.reason ?? undefined,
-						});
-					}
 					await queryClient.invalidateQueries({
 						queryKey: orpc.getVaultBalancesByVaultId.queryOptions({
 							input: { vaultId },

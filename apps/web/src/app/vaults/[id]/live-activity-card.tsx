@@ -8,7 +8,7 @@ import {
 	CardTitle,
 } from "@auto/ui/components/card";
 import { Activity, RefreshCcw } from "lucide-react";
-import { formatEther } from "viem";
+import { CycleLogEntry } from "./cycle-log-entry";
 import { useVaultDetailContext } from "./vault-detail-context";
 
 export function LiveActivityCard() {
@@ -41,50 +41,11 @@ export function LiveActivityCard() {
 				) : (
 					<ul className="flex flex-col gap-4">
 						{cycles.map((entry) => (
-							<li
-								className="rounded-md border border-[#2a2a2a] bg-[#131313] p-4 text-left"
+							<CycleLogEntry
+								baseScanTxUrl={baseScanTxUrl}
+								entry={entry}
 								key={entry.cycleId}
-							>
-								<div className="flex flex-wrap items-center justify-between gap-2">
-									<p className="font-manrope text-[#a38c85] text-xs">
-										{new Date(entry.timestamp).toLocaleString()}
-									</p>
-									<p className="font-manrope text-[#dbc1b9] text-xs">
-										{entry.input.dryRun ? "Dry run" : "Live"}
-									</p>
-								</div>
-								<p className="mt-2 font-manrope text-[#f5f5f2] text-sm">
-									<span className="text-[#a38c85]">Action:</span>{" "}
-									{entry.proposal.action}
-									{" · "}
-									<span className="text-[#a38c85]">Decision:</span>{" "}
-									{entry.riskDecision.decision}
-									{" · "}
-									<span className="text-[#a38c85]">Slippage:</span>{" "}
-									{entry.input.maxSlippageBps ?? "—"} bps
-								</p>
-								<p className="mt-1 font-manrope text-[#a38c85] text-xs">
-									<span className="text-[#a38c85]">Amount in:</span>{" "}
-									{entry.input.amountIn
-										? `${formatEther(BigInt(entry.input.amountIn))} WETH`
-										: "auto"}
-								</p>
-								{entry.riskDecision.reason ? (
-									<p className="mt-1 font-manrope text-[#a38c85] text-xs">
-										{entry.riskDecision.reason}
-									</p>
-								) : null}
-								{entry.execution?.txHash ? (
-									<a
-										className="mt-2 inline-flex font-manrope text-[#ffb59e] text-xs underline-offset-4 hover:underline"
-										href={baseScanTxUrl(entry.execution.txHash)}
-										rel="noopener noreferrer"
-										target="_blank"
-									>
-										View transaction
-									</a>
-								) : null}
-							</li>
+							/>
 						))}
 					</ul>
 				)}

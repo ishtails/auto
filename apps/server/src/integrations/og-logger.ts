@@ -77,13 +77,76 @@ export class OgLogger {
 			);
 			batcher.streamDataBuilder.set(this.streamIdHex, keyBytes, valueBytes);
 
-			const [, batchErr] = await batcher.exec();
-			if (batchErr) {
-				console.log(`[0G] Batch execution failed: ${batchErr}, skipping log`);
-				return pointer;
-			}
+			const isDebug = process.env.DEBUG === "true";
+			const SDK_LOG_THROTTLE_MS = 5000;
+			let lastWaitingLogAt = 0;
 
-			console.log(`[0G] Logged cycle to ${pointer}`);
+			const originalLog = console.log;
+			console.log = (...args: unknown[]) => {
+				const message = args
+					.map((value) => (typeof value === "string" ? value : String(value)))
+					.join(" ");
+
+				// In non-debug mode, suppress SDK noise entirely.
+				if (!isDebug) {
+					return;
+				}
+
+				// In debug mode, throttle the "waiting for storage node" spam.
+				if (message.startsWith("Waiting for storage node to sync")) {
+					const now = Date.now();
+					if (now - lastWaitingLogAt < SDK_LOG_THROTTLE_MS) {
+						return;
+					}
+					lastWaitingLogAt = now;
+				}
+
+				originalLog(...args);
+			};
+
+			try {
+				const uploadPromise = batcher.exec({
+					finalityRequired: false,
+				});
+
+				const timeoutMs = 30_000;
+				const [result, batchErr] = await Promise.race([
+					uploadPromise,
+					new Promise<[{ txHash: string; rootHash: string }, Error | null]>(
+						(resolve) => {
+							setTimeout(
+								() => resolve([{ txHash: "", rootHash: "" }, null]),
+								timeoutMs
+							);
+						}
+					),
+				]);
+
+				if (batchErr) {
+					if (isDebug) {
+						originalLog(`[0G] Batch execution failed: ${batchErr}`);
+					}
+					return pointer;
+				}
+
+				if (isDebug) {
+					if (result.txHash) {
+						originalLog("[0G] upload submitted", {
+							pointer,
+							txHash: result.txHash,
+							rootHash: result.rootHash,
+						});
+					} else {
+						originalLog("[0G] upload timed out waiting for node sync", {
+							pointer,
+						});
+					}
+				}
+
+				return pointer;
+			} finally {
+				console.log = originalLog;
+			}
 		} catch (error) {
 			console.log(`[0G] Logging failed: ${error}`);
 		}
