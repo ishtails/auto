@@ -3,1168 +3,1168 @@
 // Network: baseSepolia
 
 export const USER_VAULT_ABI = [
-  {
-    "inputs": [],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [],
-    "name": "AgentPaused",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "DeadlineExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint16",
-        "name": "bps",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "max",
-        "type": "uint16"
-      }
-    ],
-    "name": "FeeTooHigh",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "needed",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "available",
-        "type": "uint256"
-      }
-    ],
-    "name": "InsufficientBalance",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "received",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minimum",
-        "type": "uint256"
-      }
-    ],
-    "name": "InsufficientOutput",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAddress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAmount",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "bps",
-        "type": "uint256"
-      }
-    ],
-    "name": "InvalidBps",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidInitialization",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotInitializing",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "SafeERC20FailedOperation",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "reason",
-        "type": "bytes"
-      }
-    ],
-    "name": "SwapFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Unauthorized",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "paused",
-        "type": "bool"
-      }
-    ],
-    "name": "AgentPausedEvent",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "previousAgent",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "newAgent",
-        "type": "address"
-      }
-    ],
-    "name": "AgentUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint64",
-        "name": "version",
-        "type": "uint64"
-      }
-    ],
-    "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "feeBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "ProtocolFeeUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "maxTradeSizeBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "RiskParamsUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "agent",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "tokenIn",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "tokenOut",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amountOut",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "protocolFee",
-        "type": "uint256"
-      }
-    ],
-    "name": "SwapExecuted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      }
-    ],
-    "name": "Withdrawn",
-    "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "BPS_DENOMINATOR",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_FEE_BPS",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_TRADE_SIZE_BPS_CEILING",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "agentPaused",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "authorizedAgent",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "depositETH",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "tokenIn",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amountIn",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "tokenOut",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amountOutMinimum",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes",
-            "name": "swapCalldata",
-            "type": "bytes"
-          },
-          {
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct UserVault.SwapParams",
-        "name": "params",
-        "type": "tuple"
-      }
-    ],
-    "name": "executeSwap",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "feeBps",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "getBalance",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_agent",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_swapRouter",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_weth",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_protocolFeeReceiver",
-        "type": "address"
-      },
-      {
-        "internalType": "uint16",
-        "name": "_feeBps",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "_maxTradeSizeBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "maxTradeSizeBps",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "owner",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "pauseAgent",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolFeeReceiver",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_agent",
-        "type": "address"
-      }
-    ],
-    "name": "setAuthorizedAgent",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint16",
-        "name": "_maxTradeSizeBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "setRiskParams",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "swapRouter",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "unpauseAgent",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "weth",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      }
-    ],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      }
-    ],
-    "name": "withdrawETH",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
-  }
+	{
+		inputs: [],
+		stateMutability: "nonpayable",
+		type: "constructor",
+	},
+	{
+		inputs: [],
+		name: "AgentPaused",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "DeadlineExpired",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint16",
+				name: "bps",
+				type: "uint16",
+			},
+			{
+				internalType: "uint16",
+				name: "max",
+				type: "uint16",
+			},
+		],
+		name: "FeeTooHigh",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				internalType: "uint256",
+				name: "needed",
+				type: "uint256",
+			},
+			{
+				internalType: "uint256",
+				name: "available",
+				type: "uint256",
+			},
+		],
+		name: "InsufficientBalance",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "received",
+				type: "uint256",
+			},
+			{
+				internalType: "uint256",
+				name: "minimum",
+				type: "uint256",
+			},
+		],
+		name: "InsufficientOutput",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidAddress",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidAmount",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "bps",
+				type: "uint256",
+			},
+		],
+		name: "InvalidBps",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidInitialization",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "NotInitializing",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "ReentrancyGuardReentrantCall",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+		],
+		name: "SafeERC20FailedOperation",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes",
+				name: "reason",
+				type: "bytes",
+			},
+		],
+		name: "SwapFailed",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "Unauthorized",
+		type: "error",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "bool",
+				name: "paused",
+				type: "bool",
+			},
+		],
+		name: "AgentPausedEvent",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "previousAgent",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "newAgent",
+				type: "address",
+			},
+		],
+		name: "AgentUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "uint64",
+				name: "version",
+				type: "uint64",
+			},
+		],
+		name: "Initialized",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "uint16",
+				name: "feeBps",
+				type: "uint16",
+			},
+		],
+		name: "ProtocolFeeUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "uint16",
+				name: "maxTradeSizeBps",
+				type: "uint16",
+			},
+		],
+		name: "RiskParamsUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "agent",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "tokenIn",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "tokenOut",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amountIn",
+				type: "uint256",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amountOut",
+				type: "uint256",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "protocolFee",
+				type: "uint256",
+			},
+		],
+		name: "SwapExecuted",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "owner",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+			{
+				indexed: false,
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+		],
+		name: "Withdrawn",
+		type: "event",
+	},
+	{
+		inputs: [],
+		name: "BPS_DENOMINATOR",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "MAX_FEE_BPS",
+		outputs: [
+			{
+				internalType: "uint16",
+				name: "",
+				type: "uint16",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "MAX_TRADE_SIZE_BPS_CEILING",
+		outputs: [
+			{
+				internalType: "uint16",
+				name: "",
+				type: "uint16",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "agentPaused",
+		outputs: [
+			{
+				internalType: "bool",
+				name: "",
+				type: "bool",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "authorizedAgent",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "depositETH",
+		outputs: [],
+		stateMutability: "payable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				components: [
+					{
+						internalType: "address",
+						name: "tokenIn",
+						type: "address",
+					},
+					{
+						internalType: "uint256",
+						name: "amountIn",
+						type: "uint256",
+					},
+					{
+						internalType: "address",
+						name: "tokenOut",
+						type: "address",
+					},
+					{
+						internalType: "uint256",
+						name: "amountOutMinimum",
+						type: "uint256",
+					},
+					{
+						internalType: "bytes",
+						name: "swapCalldata",
+						type: "bytes",
+					},
+					{
+						internalType: "uint256",
+						name: "deadline",
+						type: "uint256",
+					},
+				],
+				internalType: "struct UserVault.SwapParams",
+				name: "params",
+				type: "tuple",
+			},
+		],
+		name: "executeSwap",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "feeBps",
+		outputs: [
+			{
+				internalType: "uint16",
+				name: "",
+				type: "uint16",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+		],
+		name: "getBalance",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_owner",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_agent",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_swapRouter",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_weth",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_protocolFeeReceiver",
+				type: "address",
+			},
+			{
+				internalType: "uint16",
+				name: "_feeBps",
+				type: "uint16",
+			},
+			{
+				internalType: "uint16",
+				name: "_maxTradeSizeBps",
+				type: "uint16",
+			},
+		],
+		name: "initialize",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "maxTradeSizeBps",
+		outputs: [
+			{
+				internalType: "uint16",
+				name: "",
+				type: "uint16",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "owner",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "pauseAgent",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "protocolFeeReceiver",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_agent",
+				type: "address",
+			},
+		],
+		name: "setAuthorizedAgent",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint16",
+				name: "_maxTradeSizeBps",
+				type: "uint16",
+			},
+		],
+		name: "setRiskParams",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "swapRouter",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "unpauseAgent",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "weth",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "token",
+				type: "address",
+			},
+			{
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+			{
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+		],
+		name: "withdraw",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "amount",
+				type: "uint256",
+			},
+			{
+				internalType: "address",
+				name: "to",
+				type: "address",
+			},
+		],
+		name: "withdrawETH",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		stateMutability: "payable",
+		type: "receive",
+	},
 ] as const;
 
 export const VAULT_FACTORY_ABI = [
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_implementation",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_deployer",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_protocolFeeReceiver",
-        "type": "address"
-      },
-      {
-        "internalType": "uint16",
-        "name": "_defaultFeeBps",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_maxVaultsPerUser",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "max",
-        "type": "uint8"
-      }
-    ],
-    "name": "DeployLimitReached",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ECDSAInvalidSignature",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "length",
-        "type": "uint256"
-      }
-    ],
-    "name": "ECDSAInvalidSignatureLength",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "s",
-        "type": "bytes32"
-      }
-    ],
-    "name": "ECDSAInvalidSignatureS",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "FailedDeployment",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint16",
-        "name": "bps",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "max",
-        "type": "uint16"
-      }
-    ],
-    "name": "FeeTooHigh",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "balance",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "needed",
-        "type": "uint256"
-      }
-    ],
-    "name": "InsufficientBalance",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAddress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidShortString",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidSignature",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "str",
-        "type": "string"
-      }
-    ],
-    "name": "StringTooLong",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Unauthorized",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "previous",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "next",
-        "type": "address"
-      }
-    ],
-    "name": "DeployerUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [],
-    "name": "EIP712DomainChanged",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "receiver",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "feeBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "FeeConfigUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "max",
-        "type": "uint8"
-      }
-    ],
-    "name": "MaxVaultsUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "vault",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "agent",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "configHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "VaultDeployed",
-    "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "DEPLOY_CONFIG_TYPEHASH",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_FEE_BPS",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "defaultFeeBps",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      }
-    ],
-    "name": "deployNonces",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "nonce",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_agent",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_swapRouter",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_weth",
-        "type": "address"
-      },
-      {
-        "internalType": "uint16",
-        "name": "_maxTradeSizeBps",
-        "type": "uint16"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_ownerSignature",
-        "type": "bytes"
-      }
-    ],
-    "name": "deployVault",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "vault",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "deployer",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "eip712Domain",
-    "outputs": [
-      {
-        "internalType": "bytes1",
-        "name": "fields",
-        "type": "bytes1"
-      },
-      {
-        "internalType": "string",
-        "name": "name",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "version",
-        "type": "string"
-      },
-      {
-        "internalType": "uint256",
-        "name": "chainId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "verifyingContract",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "salt",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "extensions",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getDomainSeparator",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      }
-    ],
-    "name": "getNonce",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      }
-    ],
-    "name": "getUserVaults",
-    "outputs": [
-      {
-        "internalType": "address[]",
-        "name": "",
-        "type": "address[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "implementation",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "maxVaultsPerUser",
-    "outputs": [
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolFeeReceiver",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_deployer",
-        "type": "address"
-      }
-    ],
-    "name": "setDeployer",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_receiver",
-        "type": "address"
-      },
-      {
-        "internalType": "uint16",
-        "name": "_feeBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "setFeeConfig",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint8",
-        "name": "_max",
-        "type": "uint8"
-      }
-    ],
-    "name": "setMaxVaultsPerUser",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      }
-    ],
-    "name": "vaultCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "count",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  }
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_implementation",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_deployer",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_protocolFeeReceiver",
+				type: "address",
+			},
+			{
+				internalType: "uint16",
+				name: "_defaultFeeBps",
+				type: "uint16",
+			},
+			{
+				internalType: "uint8",
+				name: "_maxVaultsPerUser",
+				type: "uint8",
+			},
+		],
+		stateMutability: "nonpayable",
+		type: "constructor",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "owner",
+				type: "address",
+			},
+			{
+				internalType: "uint8",
+				name: "max",
+				type: "uint8",
+			},
+		],
+		name: "DeployLimitReached",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "ECDSAInvalidSignature",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "length",
+				type: "uint256",
+			},
+		],
+		name: "ECDSAInvalidSignatureLength",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes32",
+				name: "s",
+				type: "bytes32",
+			},
+		],
+		name: "ECDSAInvalidSignatureS",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "FailedDeployment",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint16",
+				name: "bps",
+				type: "uint16",
+			},
+			{
+				internalType: "uint16",
+				name: "max",
+				type: "uint16",
+			},
+		],
+		name: "FeeTooHigh",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "balance",
+				type: "uint256",
+			},
+			{
+				internalType: "uint256",
+				name: "needed",
+				type: "uint256",
+			},
+		],
+		name: "InsufficientBalance",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidAddress",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidShortString",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "InvalidSignature",
+		type: "error",
+	},
+	{
+		inputs: [
+			{
+				internalType: "string",
+				name: "str",
+				type: "string",
+			},
+		],
+		name: "StringTooLong",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "Unauthorized",
+		type: "error",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "previous",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "next",
+				type: "address",
+			},
+		],
+		name: "DeployerUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [],
+		name: "EIP712DomainChanged",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "address",
+				name: "receiver",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "uint16",
+				name: "feeBps",
+				type: "uint16",
+			},
+		],
+		name: "FeeConfigUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "uint8",
+				name: "max",
+				type: "uint8",
+			},
+		],
+		name: "MaxVaultsUpdated",
+		type: "event",
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: true,
+				internalType: "address",
+				name: "owner",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "vault",
+				type: "address",
+			},
+			{
+				indexed: true,
+				internalType: "address",
+				name: "agent",
+				type: "address",
+			},
+			{
+				indexed: false,
+				internalType: "bytes32",
+				name: "configHash",
+				type: "bytes32",
+			},
+		],
+		name: "VaultDeployed",
+		type: "event",
+	},
+	{
+		inputs: [],
+		name: "DEPLOY_CONFIG_TYPEHASH",
+		outputs: [
+			{
+				internalType: "bytes32",
+				name: "",
+				type: "bytes32",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "MAX_FEE_BPS",
+		outputs: [
+			{
+				internalType: "uint16",
+				name: "",
+				type: "uint16",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "defaultFeeBps",
+		outputs: [
+			{
+				internalType: "uint16",
+				name: "",
+				type: "uint16",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "owner",
+				type: "address",
+			},
+		],
+		name: "deployNonces",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "nonce",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_owner",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_agent",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_swapRouter",
+				type: "address",
+			},
+			{
+				internalType: "address",
+				name: "_weth",
+				type: "address",
+			},
+			{
+				internalType: "uint16",
+				name: "_maxTradeSizeBps",
+				type: "uint16",
+			},
+			{
+				internalType: "bytes",
+				name: "_ownerSignature",
+				type: "bytes",
+			},
+		],
+		name: "deployVault",
+		outputs: [
+			{
+				internalType: "address",
+				name: "vault",
+				type: "address",
+			},
+		],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "deployer",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "eip712Domain",
+		outputs: [
+			{
+				internalType: "bytes1",
+				name: "fields",
+				type: "bytes1",
+			},
+			{
+				internalType: "string",
+				name: "name",
+				type: "string",
+			},
+			{
+				internalType: "string",
+				name: "version",
+				type: "string",
+			},
+			{
+				internalType: "uint256",
+				name: "chainId",
+				type: "uint256",
+			},
+			{
+				internalType: "address",
+				name: "verifyingContract",
+				type: "address",
+			},
+			{
+				internalType: "bytes32",
+				name: "salt",
+				type: "bytes32",
+			},
+			{
+				internalType: "uint256[]",
+				name: "extensions",
+				type: "uint256[]",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "getDomainSeparator",
+		outputs: [
+			{
+				internalType: "bytes32",
+				name: "",
+				type: "bytes32",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_owner",
+				type: "address",
+			},
+		],
+		name: "getNonce",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_owner",
+				type: "address",
+			},
+		],
+		name: "getUserVaults",
+		outputs: [
+			{
+				internalType: "address[]",
+				name: "",
+				type: "address[]",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "implementation",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "maxVaultsPerUser",
+		outputs: [
+			{
+				internalType: "uint8",
+				name: "",
+				type: "uint8",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "protocolFeeReceiver",
+		outputs: [
+			{
+				internalType: "address",
+				name: "",
+				type: "address",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_deployer",
+				type: "address",
+			},
+		],
+		name: "setDeployer",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "_receiver",
+				type: "address",
+			},
+			{
+				internalType: "uint16",
+				name: "_feeBps",
+				type: "uint16",
+			},
+		],
+		name: "setFeeConfig",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint8",
+				name: "_max",
+				type: "uint8",
+			},
+		],
+		name: "setMaxVaultsPerUser",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function",
+	},
+	{
+		inputs: [
+			{
+				internalType: "address",
+				name: "owner",
+				type: "address",
+			},
+		],
+		name: "vaultCount",
+		outputs: [
+			{
+				internalType: "uint256",
+				name: "count",
+				type: "uint256",
+			},
+		],
+		stateMutability: "view",
+		type: "function",
+	},
 ] as const;
 
 export const testnet = {
@@ -1173,5 +1173,7 @@ export const testnet = {
 };
 
 // Convenience exports for current network
-export const USER_VAULT_IMPLEMENTATION_ADDRESS = "0xFF031CADb14612cE4bB086D055F9EB38a1808556" as const;
-export const VAULT_FACTORY_ADDRESS = "0x9a59Fa46A70b9350732443AFb0202Ea7068f7FD3" as const;
+export const USER_VAULT_IMPLEMENTATION_ADDRESS =
+	"0xFF031CADb14612cE4bB086D055F9EB38a1808556" as const;
+export const VAULT_FACTORY_ADDRESS =
+	"0x9a59Fa46A70b9350732443AFb0202Ea7068f7FD3" as const;

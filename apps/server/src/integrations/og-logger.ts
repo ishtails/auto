@@ -13,6 +13,7 @@ export class OgLogger {
 	private readonly indexer: Indexer;
 	private readonly kvClient: KvClient;
 	private readonly streamId: string;
+	private readonly streamIdHex: string;
 	private readonly rpcUrl: string;
 	private readonly signer: ethers.Wallet;
 	private readonly flowContract: FixedPriceFlow;
@@ -28,6 +29,10 @@ export class OgLogger {
 		this.indexer = new Indexer(indexerRpc);
 		this.kvClient = new KvClient(kvRpc);
 		this.streamId = streamId;
+		// 0G KV uses a byte-array stream identifier internally. Using the raw UTF-8
+		// bytes here can exceed SDK/runtime bounds for longer stream IDs. Hash to a
+		// fixed 32-byte keyspace to avoid RangeErrors.
+		this.streamIdHex = ethers.keccak256(ethers.toUtf8Bytes(streamId));
 		this.rpcUrl = rpcUrl;
 		const provider = new ethers.JsonRpcProvider(rpcUrl);
 		this.signer = new ethers.Wallet(privateKey, provider);
@@ -42,9 +47,10 @@ export class OgLogger {
 	}
 
 	async write(record: CycleLogRecord): Promise<string> {
+		// Keep external pointer stable for display/debugging, but use short internal keys.
 		const pointer = `${this.streamId}:${record.cycleId}`;
 		const indexKey = `idx:${Date.now().toString().padStart(13, "0")}:${record.cycleId}`;
-		const streamIdHex = ethers.hexlify(ethers.toUtf8Bytes(this.streamId));
+		const recordKey = `c:${record.cycleId}`;
 
 		try {
 			const [nodes, selectErr] = await this.indexer.selectNodes(1);
@@ -56,20 +62,20 @@ export class OgLogger {
 			}
 
 			const batcher = new Batcher(1, nodes, this.flowContract, this.rpcUrl);
-			const keyBytes = ethers.toUtf8Bytes(pointer);
+			const keyBytes = ethers.toUtf8Bytes(recordKey);
 			const valueBytes = ethers.toUtf8Bytes(JSON.stringify(record));
 			const latestKey = ethers.toUtf8Bytes("latest");
-			const latestValue = ethers.toUtf8Bytes(pointer);
+			const latestValue = ethers.toUtf8Bytes(recordKey);
 			const indexKeyBytes = ethers.toUtf8Bytes(indexKey);
-			const indexValueBytes = ethers.toUtf8Bytes(pointer);
+			const indexValueBytes = ethers.toUtf8Bytes(recordKey);
 
-			batcher.streamDataBuilder.set(streamIdHex, latestKey, latestValue);
+			batcher.streamDataBuilder.set(this.streamIdHex, latestKey, latestValue);
 			batcher.streamDataBuilder.set(
-				streamIdHex,
+				this.streamIdHex,
 				indexKeyBytes,
 				indexValueBytes
 			);
-			batcher.streamDataBuilder.set(streamIdHex, keyBytes, valueBytes);
+			batcher.streamDataBuilder.set(this.streamIdHex, keyBytes, valueBytes);
 
 			const [, batchErr] = await batcher.exec();
 			if (batchErr) {
@@ -104,20 +110,22 @@ export class OgLogger {
 			return Promise.resolve([]);
 		}
 
-		const streamIdHex = ethers.hexlify(ethers.toUtf8Bytes(this.streamId));
-
 		return (async () => {
 			const logs: CycleLogRecord[] = [];
-			let cursor = await this.kvClient.getLast(streamIdHex, 0, MAX_QUERY_SIZE);
+			let cursor = await this.kvClient.getLast(
+				this.streamIdHex,
+				0,
+				MAX_QUERY_SIZE
+			);
 
 			while (cursor && logs.length < limit) {
 				const key = Buffer.from(cursor.key).toString("utf8");
 
 				if (key.startsWith("idx:")) {
-					const pointer = Buffer.from(cursor.data, "base64").toString("utf8");
+					const recordKey = Buffer.from(cursor.data, "base64").toString("utf8");
 					const value = await this.kvClient.getValue(
-						streamIdHex,
-						ethers.toUtf8Bytes(pointer)
+						this.streamIdHex,
+						ethers.toUtf8Bytes(recordKey)
 					);
 
 					if (value) {
@@ -130,7 +138,7 @@ export class OgLogger {
 				}
 
 				cursor = await this.kvClient.getPrev(
-					streamIdHex,
+					this.streamIdHex,
 					cursor.key,
 					0,
 					MAX_QUERY_SIZE,
@@ -140,7 +148,11 @@ export class OgLogger {
 
 			return logs;
 		})().catch((error) => {
-			console.log(`[0G] Memory query failed: ${error}`);
+			// DO NOT REMOVE: keep these failures quiet unless DEBUG=true.
+			// 0G endpoints can be flaky; callers already treat reads as best-effort.
+			if (process.env.DEBUG === "true") {
+				console.log(`[0G] Memory query failed: ${error}`);
+			}
 			return [];
 		});
 	}

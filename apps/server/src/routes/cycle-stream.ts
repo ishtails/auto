@@ -60,9 +60,18 @@ export function registerCycleStreamRoutes(app: Hono) {
 
 		return streamSSE(c, async (stream) => {
 			const seen = new Set<string>();
+			const READ_TIMEOUT_MS = 2500;
+
+			const readRecentLogsBestEffort = async () =>
+				await Promise.race([
+					logger.readRecentLogs(limit).catch(() => []),
+					new Promise<CycleLogRecord[]>((resolve) => {
+						setTimeout(() => resolve([]), READ_TIMEOUT_MS);
+					}),
+				]);
 
 			const sendHistory = async () => {
-				const recent = await logger.readRecentLogs(limit);
+				const recent = await readRecentLogsBestEffort();
 				const ordered = [...recent].reverse();
 				for (const record of ordered) {
 					seen.add(record.cycleId);
@@ -82,7 +91,7 @@ export function registerCycleStreamRoutes(app: Hono) {
 			for (;;) {
 				await stream.sleep(pollMs);
 
-				const recent = await logger.readRecentLogs(limit);
+				const recent = await readRecentLogsBestEffort();
 				const ordered = [...recent].reverse();
 
 				const newRecords: CycleLogRecord[] = [];
