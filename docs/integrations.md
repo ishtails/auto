@@ -1,262 +1,38 @@
-# Integrations Playbook (Sponsor-First)
+# Integrations (Current)
 
-This document is a **detailed integration guide** for the hackathon MVP described in:
+This project links user-owned vaults to an agent loop. Integrations are intentionally server-driven: the web UI consumes typed RPC + SSE.
 
-- `docs/requirements.md` (PRD + definition of done)
-- `docs/guide.md` (layer separation + implementation checklist)
-- `docs/tech.md` (sponsor-first mapping and constraints)
+## Execution
 
-It focuses on **configuration + integration mechanics** (not business logic), and is intended to be a long-lived reference while implementing:
+- **KeeperHub**: server submits contract calls and polls until a `txHash` is available.
+- **Uniswap V3 SwapRouter02**: calldata is built server-side and executed via the vault.
 
-- **Execution**: KeeperHub → Uniswap V3
-- **Agent-to-agent comms**: Gensyn AXL
-- **Memory / state**: 0G Storage (KV + logs)
-- **Identity**: ENS (via `viem`)
+## LLM + Decisioning
 
----
+- **Gemini**: generates strict JSON (`action`, `amountInWei`, and human-readable `reasoning`).
+- **Risk**: deterministic gate + optional AXL risk agent (mockable).
 
-## What this doc *does not* repeat
+## Storage + Streaming
 
-The architectural “why” and the hackathon constraints are already captured in `docs/guide.md` and `docs/tech.md`.
+- **0G Storage (KV)**: best-effort, verifiable log sink for `CycleLogRecord`.
+- **Postgres (Drizzle)**: app state + a local cache for cycle logs (reliable history even when 0G reads time out).
+- **SSE (Hono)**: authenticated stream of cycle history + updates to the web UI.
 
-This file is intentionally focused on the “how”:
+## Identity / UX
 
-- exact endpoints and auth
-- tool names and request shapes
-- local-dev setup steps
-- integration-specific gotchas
-- suggested module boundaries and env variables
+- **Privy**: login + embedded wallet UX; UI shows address, balances, and faucet link for Base Sepolia.
 
 ---
 
-## KeeperHub (Execution Layer)
-
-KeeperHub provides two integration surfaces that are useful for this MVP:
-
-1. **MCP Server** (workflow-based execution and monitoring)
-2. **Direct Execution API** (execute without creating workflows)
-
-### 1) MCP Server (workflow-based)
-
-**Docs**: `https://docs.keeperhub.com/ai-tools/mcp-server`
-
-#### Remote endpoint (recommended)
-
-- Hosted MCP endpoint: `https://app.keeperhub.com/mcp`
-- OAuth (browser-based) or API key (headless).
-
-Examples from KeeperHub docs:
-
-```bash
-claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
-```
-
-Headless:
-
-```bash
-claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp \
-  --header "Authorization: Bearer kh_your_key_here"
-```
-
-#### Important MCP tools for MVP
-
-- `list_action_schemas`: discover supported actions (filter category `web3`, `webhook`, etc.).
-- `get_wallet_integration`: get a `walletId` required for write actions.
-- `create_workflow`: build a workflow with trigger + actions.
-- `execute_workflow`: trigger workflow execution and get execution id.
-- `get_execution_status`, `get_execution_logs`: poll + retrieve tx hashes and errors.
-
-#### Web3 actions (from MCP docs)
-
-Read actions:
-- `web3/check-balance`
-- `web3/check-token-balance`
-- `web3/read-contract`
-
-Write actions (require `walletId`):
-- `web3/transfer-funds`
-- `web3/transfer-token`
-- `web3/write-contract`
-
-### 2) Direct Execution API (no workflow needed)
-
-**Docs**: `https://docs.keeperhub.com/api/direct-execution`
-
-This is the fastest path to “execution through KeeperHub” for MVP.
-
-#### Auth
-
-Send org API key as bearer:
-
-```http
-Authorization: Bearer kh_your_api_key
-```
-
-#### Rate limits and caps
-
-- 60 req/min per API key.
-- Optional org “spending caps” can fail with `422 SPENDING_CAP_EXCEEDED`.
-
-#### Smart contract call endpoint
-
-`POST /api/execute/contract-call`
-
-Request shape (from docs):
-
-```json
-{
-  "contractAddress": "0x...",
-  "network": "base",
-  "functionName": "exactInputSingle",
-  "functionArgs": "[\"...\"]",
-  "abi": "[{...}]",
-  "value": "0",
-  "gasLimitMultiplier": "1.2"
-}
-```
-
-Notes:
-- `functionArgs` and `abi` are passed as **JSON strings**.
-- If ABI is omitted, KeeperHub can auto-fetch from explorer in some cases.
-- Read functions return `{ "result": ... }`.
-- Write functions return `{ "executionId": "...", "status": "completed|failed" }` synchronously.
-- You can also poll `GET /api/execute/{executionId}/status` for tx hash/link and detailed status.
-
-### Wallet integration implications
-
-- In the MCP workflow world, KeeperHub explicitly requires `walletId` via `get_wallet_integration` for write actions.
-- In the Direct Execution API world, errors like `422 Wallet not configured` are possible if a wallet is not set up for the org.
-
-### MCP vs Direct Execution (decision rule)
-
-- Prefer **Direct Execution API** for the MVP “single swap intent → tx hash” path.
-- Prefer **MCP workflows** if you want workflow graphs, templates, and richer observability in KeeperHub.
-
----
-
-## Uniswap V3 (Swap execution payload)
-
-The Uniswap plugin in KeeperHub is focused on **LP position management**, not swaps:
-
-- `https://docs.keeperhub.com/plugins/uniswap`
-
-For swaps, the MVP approach is:
-
-- Use KeeperHub **contract-call** / **web3/write-contract** against **Uniswap V3 SwapRouter**.
-
-### SwapRouter call: `exactInputSingle`
-
-Core struct fields (standard Uniswap V3 router):
-
-- `tokenIn`: address
-- `tokenOut`: address
-- `fee`: uint24 (e.g. 500 / 3000 / 10000)
-- `recipient`: address
-- `amountIn`: uint256
-- `amountOutMinimum`: uint256 (slippage protection)
-- `sqrtPriceLimitX96`: uint160 (set to 0 for no limit)
-
-### Practical risk-rails
-
-Your Risk Agent should deterministically enforce:
-
-- **max trade size** (absolute and/or percent of vault balance)
-- **slippage bound** (compute `amountOutMinimum`)
-- **allowlist** of token pairs (for MVP, one path like ETH → USDC)
-- **chain allowlist** (e.g. Base Sepolia only)
-
-### Output to log
-
-Persist enough data to verify the swap later:
-
-- Router address, function name, args (or calldata hash)
-- amountIn / amountOutMinimum / fee tier
-- executionId, tx hash, explorer link
-
----
-
-## 0G Storage (Memory + State)
-
-**Docs**: `https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk`
-
-0G gives you **content-addressed blobs** (Merkle-rooted logs) and **KV** (pointers/indexes). For this project, use blobs for immutable JSON log entries and KV for `latest` + `log:<seq>` indexing.
-
-### TypeScript SDK basics
-
-Install (docs):
-
-```bash
-npm install @0gfoundation/0g-ts-sdk ethers
-```
-
-Initialize (docs example values; update endpoints from 0G network overview):
-
-- `RPC_URL`: EVM RPC endpoint (testnet/mainnet)
-- `INDEXER_RPC`: indexer endpoint (turbo/standard)
-
-### Uploading a JSON log (recommended)
-
-Use in-memory upload to avoid local files:
-
-- Build the log JSON payload
-- Serialize to bytes
-- Upload via `MemData`
-- Record the returned `rootHash` (and tx hash)
-
-Persist to KV:
-
-- `latest` → rootHash
-- `log:<seq>` → rootHash
-
-### KV gotchas (important)
-
-From docs, KV write uses `Batcher` and KV read uses `KvClient`, but:
-
-- `KvClient` example uses a raw IP endpoint (e.g. `http://...:6789`) which can change.
-- Decide early whether:
-  - the **server** reads KV and serves it to the web, or
-  - the **web** reads KV directly (requires stable KV endpoint and browser-safe bundle).
-
-### Browser support gotchas (very important for Next.js)
-
-The 0G TS SDK:
-
-- imports Node modules (`fs`, `crypto`) at load time
-- requires polyfills/stubs in browser bundlers
-
-Docs explicitly note:
-
-- `indexer.download()` uses `fs.appendFileSync` and **does not work in browsers**.
-- For browsers, you may need the starter kit’s approach and manual segment downloads.
-
-**MVP recommendation**:
-
-- Do **all 0G writes** on the server.
-- For reads:
-  - either proxy through server endpoints, or
-  - use a thin client read path only after confirming the SDK can be bundled in Next.
-
-### Encryption support
-
-Docs mention client-side encryption (`aes256` or `ecies`) and `peekHeader` detection.
-
-For hackathon MVP:
-
-- you likely want plaintext logs for public auditability.
-- if you do encrypt, document key custody very clearly (no server-side recovery).
-
----
-
-## Gensyn AXL (Agent-to-Agent Comms)
-
-**Docs**:
-
-- Get started: `https://docs.gensyn.ai/tech/agent-exchange-layer/get-started`
-- Config: `https://docs.gensyn.ai/tech/agent-exchange-layer/configuration.md`
-
-AXL is a **P2P node** (Go binary) exposing a local HTTP API by default.
-
-### What you must do to satisfy the PRD
+## Env vars (server)
+
+This list is intentionally minimal; see `@auto/env` for the full set.
+
+- **Database**: `DATABASE_URL`
+- **Gemini**: `GEMINI_API_KEY`, `GEMINI_MODEL` (optional `MOCK_LLM=true`)
+- **Execution**: `KEEPERHUB_BASE_URL`, `KEEPERHUB_API_KEY`, `UNISWAP_ROUTER_ADDRESS`
+- **0G**: `OG_INDEXER_RPC`, `OG_KV_ENDPOINT`, `OG_RPC_URL`, `OG_PRIVATE_KEY`, `OG_FLOW_CONTRACT`
+- **Debug**: `DEBUG=true`
 
 Trading Agent and Risk Agent must communicate over AXL (not in-process calls).
 

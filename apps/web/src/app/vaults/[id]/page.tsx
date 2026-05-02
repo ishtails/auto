@@ -520,7 +520,7 @@ export default function VaultDetailPage() {
 						</SheetContent>
 					</Sheet>
 
-					<div className="grid gap-6 md:grid-cols-3">
+					<div className="grid gap-6 md:grid-cols-2">
 						<Card className="border-[#55433d] bg-[#1b1b1b]">
 							<CardHeader className="pb-2">
 								<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
@@ -530,8 +530,9 @@ export default function VaultDetailPage() {
 							<CardContent>
 								<p className="font-newsreader text-3xl text-[#f5f5f2]">
 									{balances.data?.wethWei
-										? (Number(balances.data.wethWei) / 1e18).toFixed(4)
-										: "0.0000"}
+										? (Number(balances.data.wethWei) / 1e18).toFixed(18)
+										: "0.0000"}{" "}
+									WETH
 								</p>
 							</CardContent>
 						</Card>
@@ -545,20 +546,10 @@ export default function VaultDetailPage() {
 							<CardContent>
 								<p className="font-newsreader text-3xl text-[#f5f5f2]">
 									{balances.data?.usdcWei
-										? (Number(balances.data.usdcWei) / 1e6).toFixed(2)
-										: "0.00"}
+										? (Number(balances.data.usdcWei) / 1e6).toFixed(6)
+										: "0.00"}{" "}
+									USDC
 								</p>
-							</CardContent>
-						</Card>
-
-						<Card className="border-[#55433d] bg-[#1b1b1b]">
-							<CardHeader className="pb-2">
-								<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
-									Total Value (USD)
-								</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<p className="font-newsreader text-3xl text-[#f5f5f2]">$ —</p>
 							</CardContent>
 						</Card>
 					</div>
