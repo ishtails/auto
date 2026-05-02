@@ -3,6 +3,7 @@ import { Manrope, Newsreader } from "next/font/google";
 
 import "../index.css";
 import Providers from "@/components/providers";
+import { Topbar } from "@/components/topbar";
 
 const newsreader = Newsreader({
 	variable: "--font-newsreader",
@@ -33,7 +34,10 @@ export default function RootLayout({
 			suppressHydrationWarning
 		>
 			<body className="antialiased">
-				<Providers>{children}</Providers>
+				<Providers>
+					<Topbar />
+					{children}
+				</Providers>
 			</body>
 		</html>
 	);

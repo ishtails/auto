@@ -85,6 +85,7 @@ contract VaultFactory is EIP712 {
 	/// @param _owner The user's wallet address (becomes vault owner)
 	/// @param _agent The server/relayer address (authorized to execute swaps)
 	/// @param _swapRouter Uniswap V3 SwapRouter address
+	/// @param _weth Canonical WETH9 for this chain
 	/// @param _maxTradeSizeBps Max single trade size as % of vault balance
 	/// @param _ownerSignature EIP-712 signature from _owner over DeployConfig
 	/// @return vault Address of the newly deployed vault clone
@@ -92,10 +93,14 @@ contract VaultFactory is EIP712 {
 		address _owner,
 		address _agent,
 		address _swapRouter,
+		address _weth,
 		uint16 _maxTradeSizeBps,
 		bytes calldata _ownerSignature
 	) external onlyDeployer returns (address vault) {
-		if (_owner == address(0) || _agent == address(0) || _swapRouter == address(0)) {
+		if (
+			_owner == address(0) || _agent == address(0) || _swapRouter == address(0)
+				|| _weth == address(0)
+		) {
 			revert InvalidAddress();
 		}
 
@@ -127,6 +132,7 @@ contract VaultFactory is EIP712 {
 			_owner,
 			_agent,
 			_swapRouter,
+			_weth,
 			protocolFeeReceiver,
 			defaultFeeBps,
 			_maxTradeSizeBps

@@ -41,7 +41,8 @@
     "db:push:staging": "bun --filter server push:staging",
     "db:push:local": "bun --filter server push:local",
     "wipe:local": "bun --filter server wipe:local",
-    "wipe:staging": "bun --filter server wipe:staging"
+    "wipe:staging": "bun --filter server wipe:staging",
+    "shadcn": "bun --filter @auto/ui shadcn"
   },
   "dependencies": {
     "@auto/env": "workspace:*",

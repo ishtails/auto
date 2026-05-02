@@ -1,6 +1,7 @@
 "use client";
 
 import { USER_VAULT_ABI } from "@auto/contracts/factory-definitions";
+import { AddressWithCopy } from "@auto/ui/components/address";
 import { Button } from "@auto/ui/components/button";
 import {
 	Card,
@@ -8,21 +9,55 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@auto/ui/components/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@auto/ui/components/dropdown-menu";
+import { Input } from "@auto/ui/components/input";
+import { Label } from "@auto/ui/components/label";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@auto/ui/components/sheet";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronLeft, Info, ShieldCheck } from "lucide-react";
+import {
+	Activity,
+	ChevronLeft,
+	Droplet,
+	ExternalLink,
+	MoreHorizontal,
+	RefreshCw,
+	ShieldCheck,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { createWalletClient, custom, isAddress } from "viem";
+import {
+	createWalletClient,
+	custom,
+	formatEther,
+	isAddress,
+	parseEther,
+} from "viem";
+import { baseSepolia } from "viem/chains";
 import { orpc } from "@/utils/orpc";
-
-const truncateAddress = (address: string): string =>
-	`${address.slice(0, 6)}...${address.slice(-4)}`;
 
 const baseScanAddressUrl = (address: string): string =>
 	`https://sepolia.basescan.org/address/${address}`;
+
+/** Coinbase Developer Platform — Base Sepolia testnet faucet */
+const BASE_SEPOLIA_FAUCET_URL =
+	"https://portal.cdp.coinbase.com/products/faucet" as const;
 
 interface PrivyWalletLike {
 	address?: string;
@@ -37,6 +72,36 @@ const getPrivyWalletClient = async (wallet: PrivyWalletLike) => {
 	});
 };
 
+async function withdrawVaultTokens(
+	walletClient: Awaited<ReturnType<typeof getPrivyWalletClient>>,
+	vaultAddress: `0x${string}`,
+	walletAddress: `0x${string}`,
+	tokenOut: `0x${string}`,
+	wethWei: bigint,
+	usdcWei: bigint
+) {
+	if (wethWei > BigInt(0)) {
+		await walletClient.writeContract({
+			chain: baseSepolia,
+			account: walletAddress,
+			address: vaultAddress,
+			abi: USER_VAULT_ABI,
+			functionName: "withdrawETH",
+			args: [wethWei, walletAddress],
+		});
+	}
+	if (usdcWei > BigInt(0)) {
+		await walletClient.writeContract({
+			chain: baseSepolia,
+			account: walletAddress,
+			address: vaultAddress,
+			abi: USER_VAULT_ABI,
+			functionName: "withdraw",
+			args: [tokenOut, usdcWei, walletAddress],
+		});
+	}
+}
+
 export default function VaultDetailPage() {
 	const params = useParams();
 	const vaultId = params.id as string;
@@ -44,6 +109,11 @@ export default function VaultDetailPage() {
 	const { wallets } = useWallets();
 	const queryClient = useQueryClient();
 	const [isWithdrawing, setIsWithdrawing] = useState(false);
+	const [fundAmountEth, setFundAmountEth] = useState("0.01");
+	const [isFunding, setIsFunding] = useState(false);
+	const [fundSheetOpen, setFundSheetOpen] = useState(false);
+
+	const primaryWallet = wallets[0] as PrivyWalletLike | undefined;
 
 	const vaults = useQuery(orpc.listVaults.queryOptions());
 	const vault = vaults.data?.find((v) => v.id === vaultId) ?? null;
@@ -56,6 +126,26 @@ export default function VaultDetailPage() {
 			},
 		})
 	);
+
+	const nativeEthBalance = useQuery({
+		queryKey: ["wallet-native-balance", primaryWallet?.address ?? ""],
+		enabled: Boolean(ready && authenticated && primaryWallet?.address),
+		queryFn: async () => {
+			const w = primaryWallet as PrivyWalletLike;
+			const provider = (await w.getEthereumProvider()) as {
+				request: (args: {
+					method: string;
+					params?: unknown[];
+				}) => Promise<string>;
+			};
+			const hex = await provider.request({
+				method: "eth_getBalance",
+				params: [w.address as string, "latest"],
+			});
+			return BigInt(hex);
+		},
+		refetchInterval: 20_000,
+	});
 
 	const runTradeCycle = useMutation(orpc.runTradeCycle.mutationOptions());
 
@@ -83,6 +173,60 @@ export default function VaultDetailPage() {
 		);
 	}
 
+	const fundVault = async () => {
+		const vaultAddress = vault?.vaultAddress;
+		if (!(vaultAddress && isAddress(vaultAddress))) {
+			toast.error("Vault address not available yet.");
+			return;
+		}
+
+		const wallet = primaryWallet;
+		if (!wallet?.address) {
+			toast.error("No wallet connected.");
+			return;
+		}
+
+		let value: bigint;
+		try {
+			value = parseEther(fundAmountEth || "0");
+		} catch {
+			toast.error("Invalid amount.");
+			return;
+		}
+		if (value <= BigInt(0)) {
+			toast.error("Amount must be greater than zero.");
+			return;
+		}
+
+		setIsFunding(true);
+		try {
+			const walletClient = await getPrivyWalletClient(wallet);
+			await walletClient.writeContract({
+				chain: baseSepolia,
+				account: wallet.address as `0x${string}`,
+				address: vaultAddress,
+				abi: USER_VAULT_ABI,
+				functionName: "depositETH",
+				args: [],
+				value,
+			});
+			toast.success("ETH deposited; vault holds WETH.");
+			await queryClient.invalidateQueries({
+				queryKey: orpc.getVaultBalancesByVaultId.queryOptions({
+					input: { vaultId },
+				}).queryKey,
+			});
+			await queryClient.invalidateQueries({
+				queryKey: ["wallet-native-balance", wallet.address],
+			});
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			toast.error(message);
+		} finally {
+			setIsFunding(false);
+		}
+	};
+
 	const withdraw = async () => {
 		const vaultAddress = vault?.vaultAddress;
 		if (!(vaultAddress && isAddress(vaultAddress))) {
@@ -97,9 +241,8 @@ export default function VaultDetailPage() {
 			return;
 		}
 
-		const tokenIn = vault?.tokenIn;
 		const tokenOut = vault?.tokenOut;
-		if (!(tokenIn && tokenOut)) {
+		if (!tokenOut) {
 			toast.error("Vault tokens are not available.");
 			return;
 		}
@@ -114,26 +257,14 @@ export default function VaultDetailPage() {
 		setIsWithdrawing(true);
 		try {
 			const walletClient = await getPrivyWalletClient(wallet);
-
-			const withdrawToken = async (token: string, amount: bigint) => {
-				if (amount === BigInt(0)) {
-					return;
-				}
-				await walletClient.writeContract({
-					chain: null,
-					address: vaultAddress,
-					abi: USER_VAULT_ABI,
-					functionName: "withdraw",
-					args: [
-						token as `0x${string}`,
-						amount,
-						walletAddress as `0x${string}`,
-					],
-				});
-			};
-
-			await withdrawToken(tokenIn, wethWei);
-			await withdrawToken(tokenOut, usdcWei);
+			await withdrawVaultTokens(
+				walletClient,
+				vaultAddress as `0x${string}`,
+				walletAddress as `0x${string}`,
+				tokenOut as `0x${string}`,
+				wethWei,
+				usdcWei
+			);
 
 			toast.success("Withdraw submitted.");
 			await queryClient.invalidateQueries({
@@ -192,39 +323,198 @@ export default function VaultDetailPage() {
 
 				<header className="mb-12 flex items-end justify-between border-[#55433d] border-b pb-8">
 					<div>
-						<span className="font-manrope text-[#d97757] text-xs uppercase tracking-[0.2em]">
-							{vault?.status ? `Vault ${vault.status}` : "Vault"}
-						</span>
 						<h1 className="mt-2 font-newsreader text-5xl text-[#f5f5f2] italic">
-							{vault?.name || "Vault"}
+							{vault?.name || "Agent"}
 						</h1>
-						<p className="mt-2 font-manrope text-[#a38c85] text-sm">
-							ID: {vaultId}
-						</p>
+						<div className="mt-3">
+							{vault?.vaultAddress ? (
+								<AddressWithCopy
+									address={vault.vaultAddress}
+									className="justify-start"
+									href={baseScanAddressUrl(vault.vaultAddress)}
+								/>
+							) : (
+								<p className="font-manrope text-[#a38c85] text-sm">
+									Deploying… (address pending)
+								</p>
+							)}
+						</div>
 					</div>
-					<div className="flex gap-3">
+					<div className="flex flex-wrap gap-3">
 						<Button
-							className="border-[#55433d] text-[#dbc1b9] hover:bg-[#2a2a2a]"
-							disabled={runTradeCycle.isPending || !vault?.vaultAddress}
-							onClick={runCycle}
-							variant="outline"
+							className="bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
+							onClick={() => {
+								window.open(
+									BASE_SEPOLIA_FAUCET_URL,
+									"_blank",
+									"noopener,noreferrer"
+								);
+							}}
+							type="button"
 						>
-							Run cycle
+							<Droplet className="h-4 w-4" />
+							Fund Agent <ExternalLink className="h-4 w-4" />
 						</Button>
-						<Button
-							className="bg-[#d97757] text-[#1b1b1b] hover:bg-[#ffb59e]"
-							disabled={isWithdrawing || balances.isLoading}
-							onClick={withdraw}
+						<Sheet
+							onOpenChange={(open) => {
+								setFundSheetOpen(open);
+								if (open && primaryWallet?.address) {
+									queryClient
+										.invalidateQueries({
+											queryKey: [
+												"wallet-native-balance",
+												primaryWallet.address,
+											],
+										})
+										.catch(() => {
+											/* balance refetch is best-effort */
+										});
+								}
+							}}
+							open={fundSheetOpen}
 						>
-							Withdraw
-						</Button>
+							<SheetContent
+								className="border-[#55433d] bg-[#1b1b1b] text-[#e2e2e2]"
+								showCloseButton
+								side="right"
+							>
+								<SheetHeader className="border-[#2a2a2a] border-b pb-4 text-left">
+									<SheetTitle className="font-newsreader text-[#f5f5f2] text-xl">
+										Fund vault
+									</SheetTitle>
+									<SheetDescription className="font-manrope text-[#a38c85] text-sm">
+										Send Base Sepolia ETH from your wallet. It is wrapped to
+										WETH inside the vault via{" "}
+										<code className="text-[#dbc1b9]">depositETH</code> (full gas
+										limit for smart wallets).
+									</SheetDescription>
+								</SheetHeader>
+								<div className="flex flex-col gap-6 px-4 py-6">
+									<div className="rounded-md border border-[#55433d] bg-[#131313] p-4">
+										<p className="font-manrope text-[#a38c85] text-[10px] uppercase tracking-[0.08em]">
+											Your wallet (native ETH)
+										</p>
+										<div className="mt-1 flex items-center gap-2">
+											<p className="font-newsreader text-3xl text-[#f5f5f2]">
+												{nativeEthBalance.isLoading
+													? "…"
+													: `${formatEther(nativeEthBalance.data ?? BigInt(0))} ETH`}
+											</p>
+											<button
+												aria-label="Refresh wallet balance"
+												className="inline-flex rounded-md p-2 text-[#a38c85] transition-colors hover:bg-[#1b1b1b] hover:text-[#e2e2e2] disabled:pointer-events-none disabled:opacity-50"
+												disabled={nativeEthBalance.isFetching}
+												onClick={async () => {
+													await nativeEthBalance.refetch();
+												}}
+												type="button"
+											>
+												<RefreshCw
+													aria-hidden
+													className={`h-4 w-4 ${nativeEthBalance.isFetching ? "animate-spin" : ""}`}
+												/>
+											</button>
+										</div>
+										<a
+											className="mt-3 inline-flex font-manrope text-[#ffb59e] text-sm underline-offset-4 hover:underline"
+											href={BASE_SEPOLIA_FAUCET_URL}
+											rel="noopener noreferrer"
+											target="_blank"
+										>
+											Get testnet ETH — Coinbase Base Sepolia faucet
+										</a>
+										<p className="mt-2 font-manrope text-[#a38c85] text-xs">
+											Use the same wallet address you use with Privy. After the
+											faucet confirms, return here and refresh if needed.
+										</p>
+									</div>
+									<div className="grid gap-2">
+										<Label
+											className="font-manrope text-[#dbc1b9] text-xs"
+											htmlFor="fundEth"
+										>
+											Amount to deposit (ETH)
+										</Label>
+										<Input
+											className="h-11 rounded-md border-[#55433d] bg-[#131313] font-manrope text-[#e2e2e2] text-sm"
+											id="fundEth"
+											min="0"
+											onChange={(e) => setFundAmountEth(e.target.value)}
+											placeholder="0.01"
+											step="any"
+											type="number"
+											value={fundAmountEth}
+										/>
+									</div>
+									<Button
+										className="h-11 rounded-md bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
+										disabled={
+											isFunding ||
+											!vault?.vaultAddress ||
+											vault.status !== "active"
+										}
+										onClick={() => {
+											fundVault().catch(() => {
+												/* fundVault surfaces errors via toast */
+											});
+										}}
+										type="button"
+									>
+										{isFunding ? "Depositing…" : "Deposit into vault"}
+									</Button>
+								</div>
+							</SheetContent>
+						</Sheet>
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										className="border-[#55433d] text-[#dbc1b9] hover:bg-[#2a2a2a]"
+										size="icon"
+										variant="outline"
+									/>
+								}
+							>
+								<MoreHorizontal className="h-4 w-4" />
+								<span className="sr-only">More actions</span>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent
+								align="end"
+								className="w-56 border border-[#55433d] bg-[#1b1b1b] text-[#e2e2e2]"
+								sideOffset={8}
+							>
+								<DropdownMenuGroup>
+									<DropdownMenuLabel className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.08em]">
+										Actions
+									</DropdownMenuLabel>
+									<DropdownMenuItem
+										className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+										onSelect={() => {
+											setFundSheetOpen(true);
+										}}
+									>
+										Fund vault
+									</DropdownMenuItem>
+									<DropdownMenuSeparator className="bg-[#2a2a2a]" />
+									<DropdownMenuItem
+										className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+										disabled={isWithdrawing || balances.isLoading}
+										onSelect={() => {
+											withdraw();
+										}}
+									>
+										Withdraw
+									</DropdownMenuItem>
+								</DropdownMenuGroup>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 				</header>
 
 				<div className="grid gap-6 md:grid-cols-3">
 					<Card className="border-[#55433d] bg-[#1b1b1b]">
 						<CardHeader className="pb-2">
-							<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.1em]">
+							<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
 								WETH Balance
 							</CardTitle>
 						</CardHeader>
@@ -239,7 +529,7 @@ export default function VaultDetailPage() {
 
 					<Card className="border-[#55433d] bg-[#1b1b1b]">
 						<CardHeader className="pb-2">
-							<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.1em]">
+							<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
 								USDC Balance
 							</CardTitle>
 						</CardHeader>
@@ -254,7 +544,7 @@ export default function VaultDetailPage() {
 
 					<Card className="border-[#55433d] bg-[#1b1b1b]">
 						<CardHeader className="pb-2">
-							<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.1em]">
+							<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
 								Total Value (USD)
 							</CardTitle>
 						</CardHeader>
@@ -264,13 +554,21 @@ export default function VaultDetailPage() {
 					</Card>
 				</div>
 
-				<div className="mt-12 grid gap-6 md:grid-cols-[2fr_1fr]">
+				<div className="mt-12 grid gap-6">
 					<Card className="border-[#55433d] bg-[#1b1b1b]">
 						<CardHeader className="flex flex-row items-center justify-between border-[#2a2a2a] border-b pb-4">
 							<CardTitle className="flex items-center gap-2 font-newsreader font-normal text-2xl text-[#f5f5f2]">
 								<Activity className="h-5 w-5 text-[#ffb59e]" />
-								Recent Activity
+								Live Activity
 							</CardTitle>
+							<Button
+								className="border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+								disabled={runTradeCycle.isPending || !vault?.vaultAddress}
+								onClick={runCycle}
+								variant="outline"
+							>
+								Trigger Cycle
+							</Button>
 						</CardHeader>
 						<CardContent className="py-12 text-center">
 							<p className="font-manrope text-[#a38c85]">
@@ -279,47 +577,7 @@ export default function VaultDetailPage() {
 						</CardContent>
 					</Card>
 
-					<Card className="border-[#55433d] bg-[#1b1b1b]">
-						<CardHeader className="border-[#2a2a2a] border-b pb-4">
-							<CardTitle className="flex items-center gap-2 font-newsreader font-normal text-[#f5f5f2] text-xl">
-								<Info className="h-4 w-4 text-[#d97757]" />
-								Vault Info
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="grid gap-4 pt-4">
-							<div className="grid gap-1">
-								<span className="font-manrope text-[#a38c85] text-[10px] uppercase">
-									Address
-								</span>
-								{vault?.vaultAddress ? (
-									<a
-										className="break-all font-mono text-[#dbc1b9] text-xs underline decoration-[#55433d] underline-offset-4 hover:text-[#f5f5f2]"
-										href={baseScanAddressUrl(vault.vaultAddress)}
-										rel="noopener"
-										target="_blank"
-									>
-										{truncateAddress(vault.vaultAddress)}
-									</a>
-								) : (
-									<span className="text-[#a38c85] text-xs">
-										Deploying… (address pending)
-									</span>
-								)}
-							</div>
-							<div className="grid gap-1">
-								<span className="font-manrope text-[#a38c85] text-[10px] uppercase">
-									Network
-								</span>
-								<span className="text-[#dbc1b9] text-xs">Base Sepolia</span>
-							</div>
-							<div className="grid gap-1">
-								<span className="font-manrope text-[#a38c85] text-[10px] uppercase">
-									Created
-								</span>
-								<span className="text-[#dbc1b9] text-xs">May 1, 2026</span>
-							</div>
-						</CardContent>
-					</Card>
+					<div />
 				</div>
 			</div>
 		</main>

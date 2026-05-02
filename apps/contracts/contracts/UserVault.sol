@@ -6,9 +6,11 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @dev Canonical WETH `deposit()` — credits `msg.sender` with WETH equal to `msg.value`
+/// @dev Canonical WETH9-style wrap / unwrap
 interface IWETH {
 	function deposit() external payable;
+
+	function withdraw(uint256 amount) external;
 }
 
 /// @title UserVault — Non-custodial trading vault with post-swap protocol fees
@@ -34,6 +36,8 @@ contract UserVault is Initializable, ReentrancyGuard {
 	address public owner;
 	address public authorizedAgent;
 	address public swapRouter;
+	/// @notice Canonical WETH for this chain (wrap on deposit, unwrap on withdrawETH)
+	address public weth;
 	address public protocolFeeReceiver;
 	uint16 public feeBps;
 	uint16 public maxTradeSizeBps;
@@ -84,6 +88,7 @@ contract UserVault is Initializable, ReentrancyGuard {
 	/// @param _owner The user's wallet address (full control)
 	/// @param _agent The server/relayer address (swap execution only)
 	/// @param _swapRouter Uniswap V3 SwapRouter address
+	/// @param _weth Canonical WETH9 address for this chain
 	/// @param _protocolFeeReceiver Address that receives protocol fees
 	/// @param _feeBps Protocol fee in basis points (0 for V1)
 	/// @param _maxTradeSizeBps Max single trade size as % of vault balance
@@ -91,11 +96,15 @@ contract UserVault is Initializable, ReentrancyGuard {
 		address _owner,
 		address _agent,
 		address _swapRouter,
+		address _weth,
 		address _protocolFeeReceiver,
 		uint16 _feeBps,
 		uint16 _maxTradeSizeBps
 	) external initializer {
-		if (_owner == address(0) || _agent == address(0) || _swapRouter == address(0)) {
+		if (
+			_owner == address(0) || _agent == address(0) || _swapRouter == address(0)
+				|| _weth == address(0)
+		) {
 			revert InvalidAddress();
 		}
 		if (_feeBps > MAX_FEE_BPS) {
@@ -108,13 +117,32 @@ contract UserVault is Initializable, ReentrancyGuard {
 		owner = _owner;
 		authorizedAgent = _agent;
 		swapRouter = _swapRouter;
+		weth = _weth;
 		protocolFeeReceiver = _protocolFeeReceiver;
 		feeBps = _feeBps;
 		maxTradeSizeBps = _maxTradeSizeBps;
 	}
 
-	/// @notice Receive ETH deposits
-	receive() external payable {}
+	/// @dev Wrap user-sent ETH to WETH. ETH from `IWETH.withdraw` (msg.sender == weth) is left
+	///      native so `withdrawETH` can forward it — wrapping again would reenter and break.
+	receive() external payable {
+		if (msg.sender == weth) {
+			return;
+		}
+		_wrapIncomingEth(msg.value);
+	}
+
+	/// @notice Deposit native ETH; wraps to WETH in this vault (preferred for smart wallets / full gas).
+	function depositETH() external payable nonReentrant {
+		_wrapIncomingEth(msg.value);
+	}
+
+	function _wrapIncomingEth(uint256 amount) private {
+		if (amount == 0) {
+			return;
+		}
+		IWETH(weth).deposit{ value: amount }();
+	}
 
 	// ─── Agent Functions ─────────────────────────────────────────────
 
@@ -187,17 +215,19 @@ contract UserVault is Initializable, ReentrancyGuard {
 		emit Withdrawn(msg.sender, token, amount, to);
 	}
 
-	/// @notice Withdraw ETH. Only callable by owner. No protocol fee.
-	/// @param amount Amount of ETH to withdraw
+	/// @notice Unwrap WETH and send native ETH to `to`. Only owner. No protocol fee.
+	/// @param amount WETH amount to unwrap and send
 	/// @param to Recipient address
 	function withdrawETH(uint256 amount, address to) external nonReentrant onlyOwner {
 		if (to == address(0)) revert InvalidAddress();
 		if (amount == 0) revert InvalidAmount();
 
-		uint256 balance = address(this).balance;
-		if (balance < amount) {
-			revert InsufficientBalance(address(0), amount, balance);
+		uint256 wethBalance = IERC20(weth).balanceOf(address(this));
+		if (wethBalance < amount) {
+			revert InsufficientBalance(weth, amount, wethBalance);
 		}
+
+		IWETH(weth).withdraw(amount);
 
 		(bool success, bytes memory returnData) = to.call{ value: amount }("");
 		if (!success) {

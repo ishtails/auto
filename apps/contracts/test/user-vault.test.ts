@@ -1,7 +1,12 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import type { MockERC20, UserVault, VaultFactory } from "../typechain-types";
+import type {
+	MockERC20,
+	MockWETH,
+	UserVault,
+	VaultFactory,
+} from "../typechain-types";
 
 // EIP-712 domain and type definitions
 const DEPLOY_CONFIG_TYPES = {
@@ -18,12 +23,10 @@ describe("UserVault + VaultFactory", () => {
 		const [deployer, vaultOwner, agent, feeReceiver, attacker] =
 			await ethers.getSigners();
 
-		// Deploy mock tokens
+		// WETH mock (deposit / withdraw); USDC stays plain ERC20
+		const MockWETHFactory = await ethers.getContractFactory("MockWETH");
+		const tokenIn = (await MockWETHFactory.deploy()) as unknown as MockWETH;
 		const MockERC20 = await ethers.getContractFactory("MockERC20");
-		const tokenIn = (await MockERC20.deploy(
-			"WETH",
-			"WETH"
-		)) as unknown as MockERC20;
 		const tokenOut = (await MockERC20.deploy(
 			"USDC",
 			"USDC"
@@ -67,7 +70,8 @@ describe("UserVault + VaultFactory", () => {
 		fixture: Awaited<ReturnType<typeof deployFixture>>,
 		feeBps = 0
 	) {
-		const { factory, vaultOwner, agent, mockRouter, deployer } = fixture;
+		const { factory, vaultOwner, agent, mockRouter, deployer, tokenIn } =
+			fixture;
 
 		// Update fee if non-zero
 		if (feeBps > 0) {
@@ -106,6 +110,7 @@ describe("UserVault + VaultFactory", () => {
 				vaultOwner.address,
 				agent.address,
 				await mockRouter.getAddress(),
+				await tokenIn.getAddress(),
 				maxTradeSizeBps,
 				signature
 			);
@@ -176,6 +181,7 @@ describe("UserVault + VaultFactory", () => {
 						vaultOwner.address,
 						agent.address,
 						await mockRouter.getAddress(),
+						await fixture.tokenIn.getAddress(),
 						5000,
 						signature
 					)
@@ -220,6 +226,7 @@ describe("UserVault + VaultFactory", () => {
 						vaultOwner.address,
 						agent.address,
 						await mockRouter.getAddress(),
+						await fixture.tokenIn.getAddress(),
 						5000,
 						signature
 					)
@@ -237,6 +244,7 @@ describe("UserVault + VaultFactory", () => {
 						vaultOwner.address,
 						agent.address,
 						await mockRouter.getAddress(),
+						await fixture.tokenIn.getAddress(),
 						5000,
 						"0x00"
 					)
@@ -451,6 +459,45 @@ describe("UserVault + VaultFactory", () => {
 
 			const vaultBal = await tokenOut.balanceOf(await vault.getAddress());
 			expect(vaultBal).to.equal(outputAmount);
+		});
+	});
+
+	describe("Native ETH ↔ WETH", () => {
+		it("depositETH wraps to WETH held by the vault", async () => {
+			const fixture = await loadFixture(deployFixture);
+			const { vault } = await deployVaultViaFactory(fixture);
+			const { vaultOwner, tokenIn } = fixture;
+
+			const amt = ethers.parseEther("0.25");
+			await vault.connect(vaultOwner).depositETH({ value: amt });
+
+			expect(await tokenIn.balanceOf(await vault.getAddress())).to.equal(amt);
+			expect(
+				await ethers.provider.getBalance(await vault.getAddress())
+			).to.equal(0n);
+		});
+
+		it("withdrawETH unwraps WETH and sends native ETH to recipient", async () => {
+			const fixture = await loadFixture(deployFixture);
+			const { vault } = await deployVaultViaFactory(fixture);
+			const { vaultOwner, tokenIn } = fixture;
+
+			const amt = ethers.parseEther("0.1");
+			await vault.connect(vaultOwner).depositETH({ value: amt });
+
+			const ethBefore = await ethers.provider.getBalance(vaultOwner.address);
+			const tx = await vault
+				.connect(vaultOwner)
+				.withdrawETH(amt, vaultOwner.address);
+			const receipt = await tx.wait();
+			if (receipt === null) {
+				throw new Error("missing transaction receipt");
+			}
+			const gas = receipt.fee;
+			const ethAfter = await ethers.provider.getBalance(vaultOwner.address);
+
+			expect(ethAfter - ethBefore).to.equal(amt - gas);
+			expect(await tokenIn.balanceOf(await vault.getAddress())).to.equal(0n);
 		});
 	});
 });

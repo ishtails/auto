@@ -59,6 +59,9 @@ export const deployWorker = new Worker(
 				`Invalid UNISWAP_ROUTER_ADDRESS: ${env.UNISWAP_ROUTER_ADDRESS}`
 			);
 		}
+		if (!isAddress(env.TOKEN_WETH)) {
+			throw new Error(`Invalid TOKEN_WETH: ${env.TOKEN_WETH}`);
+		}
 		if (!isAddress(env.KEEPERHUB_RELAYER_ADDRESS)) {
 			throw new Error(
 				`Invalid KEEPERHUB_RELAYER_ADDRESS: ${env.KEEPERHUB_RELAYER_ADDRESS}`
@@ -91,6 +94,7 @@ export const deployWorker = new Worker(
 				ownerAddress as `0x${string}`,
 				env.KEEPERHUB_RELAYER_ADDRESS as `0x${string}`,
 				env.UNISWAP_ROUTER_ADDRESS as `0x${string}`,
+				env.TOKEN_WETH as `0x${string}`,
 				maxTradeSizeBps,
 				ownerSignature as `0x${string}`,
 			],
