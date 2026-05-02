@@ -50,13 +50,22 @@ export function ManualCycleSheet() {
 	const autopilotEnabled = Boolean(vault?.autopilot);
 
 	const executionStatus = (() => {
+		if (!lastResult) {
+			return "—";
+		}
 		if (dryRun) {
-			return "dry-run";
+			return "Paper trade (no execution)";
 		}
-		if (lastResult?.txHash) {
-			return "submitted";
+		if (!autopilotEnabled) {
+			return "Suggest-only (no on-chain execution)";
 		}
-		return "pending";
+		if (lastResult.txHash) {
+			return "Submitted on-chain";
+		}
+		if (lastResult.decision === "REJECT") {
+			return "Not executed (rejected)";
+		}
+		return "No on-chain trade (e.g. HOLD or analysis-only)";
 	})();
 
 	const parsedTradeSizeBps = Number.parseInt(tradeSizeBps, 10);

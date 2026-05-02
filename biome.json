@@ -83,5 +83,26 @@
       "tailwindDirectives": true
     }
   },
-  "extends": ["ultracite/biome/core", "ultracite/biome/next"]
+  "extends": ["ultracite/biome/core", "ultracite/biome/next"],
+  "overrides": [
+    {
+      "includes": ["**/packages/ui/src/components/chart.tsx"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "off"
+          },
+          "performance": {
+            "noNamespaceImport": "off"
+          },
+          "security": {
+            "noDangerouslySetInnerHtml": "off"
+          },
+          "style": {
+            "useConsistentTypeDefinitions": "off"
+          }
+        }
+      }
+    }
+  ]
 }

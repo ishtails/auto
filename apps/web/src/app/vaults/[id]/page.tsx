@@ -4,12 +4,6 @@ import { USER_VAULT_ABI } from "@auto/contracts/factory-definitions";
 import { AddressWithCopy } from "@auto/ui/components/address";
 import { Button } from "@auto/ui/components/button";
 import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@auto/ui/components/card";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuGroup,
@@ -34,6 +28,7 @@ import {
 	Droplet,
 	ExternalLink,
 	MoreHorizontal,
+	RefreshCcw,
 	RefreshCw,
 	ShieldCheck,
 } from "lucide-react";
@@ -54,6 +49,7 @@ import { LiveActivityCard } from "./live-activity-card";
 import { ManualCycleSheet } from "./manual-cycle-sheet";
 import { useVaultCycleFeed } from "./use-vault-cycle-feed";
 import { VaultDetailProvider } from "./vault-detail-context";
+import { VaultPortfolioAnalytics } from "./vault-portfolio-analytics";
 
 const baseScanAddressUrl = (address: string): string =>
 	`https://sepolia.basescan.org/address/${address}`;
@@ -82,29 +78,35 @@ async function withdrawVaultTokens(
 	walletClient: Awaited<ReturnType<typeof getPrivyWalletClient>>,
 	vaultAddress: `0x${string}`,
 	walletAddress: `0x${string}`,
-	tokenOut: `0x${string}`,
-	wethWei: bigint,
-	usdcWei: bigint
+	tokenRows: readonly {
+		address: `0x${string}`;
+		isHub: boolean;
+		wei: bigint;
+	}[]
 ) {
-	if (wethWei > BigInt(0)) {
-		await walletClient.writeContract({
-			chain: baseSepolia,
-			account: walletAddress,
-			address: vaultAddress,
-			abi: USER_VAULT_ABI,
-			functionName: "withdrawETH",
-			args: [wethWei, walletAddress],
-		});
-	}
-	if (usdcWei > BigInt(0)) {
-		await walletClient.writeContract({
-			chain: baseSepolia,
-			account: walletAddress,
-			address: vaultAddress,
-			abi: USER_VAULT_ABI,
-			functionName: "withdraw",
-			args: [tokenOut, usdcWei, walletAddress],
-		});
+	for (const row of tokenRows) {
+		if (row.wei === BigInt(0)) {
+			continue;
+		}
+		if (row.isHub) {
+			await walletClient.writeContract({
+				chain: baseSepolia,
+				account: walletAddress,
+				address: vaultAddress,
+				abi: USER_VAULT_ABI,
+				functionName: "withdrawETH",
+				args: [row.wei, walletAddress],
+			});
+		} else {
+			await walletClient.writeContract({
+				chain: baseSepolia,
+				account: walletAddress,
+				address: vaultAddress,
+				abi: USER_VAULT_ABI,
+				functionName: "withdraw",
+				args: [row.address, row.wei, walletAddress],
+			});
+		}
 	}
 }
 
@@ -259,15 +261,16 @@ export default function VaultDetailPage() {
 			return;
 		}
 
-		const tokenOut = vault?.tokenOut;
-		if (!(tokenOut && isAddress(tokenOut))) {
-			toast.error("Vault tokenOut not available.");
-			return;
-		}
+		const tokenRows =
+			balances.data?.tokens
+				.filter((t) => isAddress(t.address))
+				.map((t) => ({
+					address: t.address as `0x${string}`,
+					isHub: t.isHub,
+					wei: BigInt(t.wei),
+				})) ?? [];
 
-		const wethWei = BigInt(balances.data?.wethWei ?? "0");
-		const usdcWei = BigInt(balances.data?.usdcWei ?? "0");
-		if (wethWei === BigInt(0) && usdcWei === BigInt(0)) {
+		if (!tokenRows.some((r) => r.wei > BigInt(0))) {
 			toast.message("No balance to withdraw.");
 			return;
 		}
@@ -279,9 +282,7 @@ export default function VaultDetailPage() {
 				walletClient,
 				vaultAddress as `0x${string}`,
 				walletAddress as `0x${string}`,
-				tokenOut as `0x${string}`,
-				wethWei,
-				usdcWei
+				tokenRows
 			);
 
 			toast.success("Withdraw submitted.");
@@ -361,7 +362,23 @@ export default function VaultDetailPage() {
 							</div>
 						</div>
 
-						<div className="flex flex-wrap gap-3">
+						<div className="flex flex-wrap items-center gap-3">
+							<Button
+								className="border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+								onClick={() => {
+									window.open(
+										BASE_SEPOLIA_FAUCET_URL,
+										"_blank",
+										"noopener,noreferrer"
+									);
+								}}
+								type="button"
+								variant="outline"
+							>
+								<Droplet className="size-4" />
+								Get WETH (faucet) <ExternalLink className="size-4" />
+							</Button>
+
 							<Button
 								className="border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
 								disabled={!vault || setVaultAutopilot.isPending}
@@ -387,25 +404,26 @@ export default function VaultDetailPage() {
 										});
 								}}
 								type="button"
-								variant="outline"
+								variant={vault?.autopilot ? "destructive" : "outline"}
 							>
 								<ShieldCheck className="size-4" />
-								Autopilot: {vault?.autopilot ? "On" : "Off"}
+								Autopilot: {vault?.autopilot ? "ON" : "OFF"}
 							</Button>
 
 							<Button
-								className="bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
+								className="bg-[#d97757] px-5 font-manrope text-[#1b1b1b] shadow-[0_0_0_1px_rgba(217,119,87,0.35)] hover:bg-[#ffb59e]"
+								disabled={
+									runTradeCycle.isPending ||
+									!vault?.vaultAddress ||
+									vault.status !== "active"
+								}
 								onClick={() => {
-									window.open(
-										BASE_SEPOLIA_FAUCET_URL,
-										"_blank",
-										"noopener,noreferrer"
-									);
+									setTriggerSheetOpen(true);
 								}}
 								type="button"
 							>
-								<Droplet className="size-4" />
-								Claim ETH <ExternalLink className="size-4" />
+								<RefreshCcw className="size-4" />
+								Run trade cycle
 							</Button>
 
 							<DropdownMenu>
@@ -557,39 +575,10 @@ export default function VaultDetailPage() {
 						</SheetContent>
 					</Sheet>
 
-					<div className="grid gap-6 md:grid-cols-2">
-						<Card className="border-[#55433d] bg-[#1b1b1b]">
-							<CardHeader className="pb-2">
-								<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
-									WETH Balance
-								</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<p className="font-newsreader text-3xl text-[#f5f5f2]">
-									{balances.data?.wethWei
-										? (Number(balances.data.wethWei) / 1e18).toFixed(18)
-										: "0.0000"}{" "}
-									WETH
-								</p>
-							</CardContent>
-						</Card>
-
-						<Card className="border-[#55433d] bg-[#1b1b1b]">
-							<CardHeader className="pb-2">
-								<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
-									USDC Balance
-								</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<p className="font-newsreader text-3xl text-[#f5f5f2]">
-									{balances.data?.usdcWei
-										? (Number(balances.data.usdcWei) / 1e6).toFixed(6)
-										: "0.00"}{" "}
-									USDC
-								</p>
-							</CardContent>
-						</Card>
-					</div>
+					<VaultPortfolioAnalytics
+						balances={balances.data}
+						isLoading={balances.isLoading}
+					/>
 
 					<div className="mt-12 grid gap-6">
 						<ManualCycleSheet />
