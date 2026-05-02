@@ -67,10 +67,27 @@ export const getVaultBalancesSchema = z.object({
 	vaultId: z.string().uuid(),
 });
 
-export const getVaultBalancesOutputSchema = z.object({
-	wethWei: z.string().regex(/^\d+$/),
-	usdcWei: z.string().regex(/^\d+$/),
+export const vaultTokenBalanceRowSchema = z.object({
+	address: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+	decimals: z.number().int().min(0).max(36),
+	isHub: z.boolean(),
+	key: z.string(),
+	symbol: z.string(),
+	wei: z.string().regex(/^\d+$/),
 });
+
+export const getVaultBalancesOutputSchema = z.object({
+	hubTokenKey: z.string(),
+	tokens: z.array(vaultTokenBalanceRowSchema),
+	/** Legacy fields: hub (WETH) and USDC balances for sizing and older clients. */
+	usdcWei: z.string().regex(/^\d+$/),
+	wethWei: z.string().regex(/^\d+$/),
+});
+
+export type VaultTokenBalanceRow = z.infer<typeof vaultTokenBalanceRowSchema>;
+export type GetVaultBalancesOutput = z.infer<
+	typeof getVaultBalancesOutputSchema
+>;
 
 export const vaultSchema = z.object({
 	id: z.string().uuid(),

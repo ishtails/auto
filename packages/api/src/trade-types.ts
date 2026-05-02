@@ -102,3 +102,31 @@ export interface CycleLogRecord {
 	} | null;
 	timestamp: string;
 }
+
+/** High-level on-chain result for a past cycle (LLM trading memory). */
+export type TradingMemoryExecutionOutcome = "completed" | "skipped" | "failed";
+
+/**
+ * One row of trading memory fed to the LLM. `riskDecision` is the risk gate only;
+ * `executionOutcome` reflects whether a swap actually completed on-chain.
+ */
+export interface LlmTradingMemoryEntry {
+	/** KeeperHub status when an execution object exists (e.g. completed, failed, pending). */
+	executionKeeperStatus?: string;
+	executionOutcome: TradingMemoryExecutionOutcome;
+	mode: "suggest" | "dryRun" | "live" | "unknown";
+	proposalAction: string;
+	proposalAmountInWei: string;
+	proposalTokenIn: string;
+	proposalTokenOut: string;
+	reasoning: string;
+	riskDecision: "APPROVE" | "REJECT";
+	routeAmountIn?: string;
+	/** When a route was built (attempted or completed swap path). */
+	routeTokenIn?: string;
+	routeTokenOut?: string;
+	/** Why no on-chain swap completed (when executionOutcome is skipped). */
+	skipReason?: string;
+	timestamp: string;
+	txHashPresent: boolean;
+}

@@ -66,9 +66,19 @@ export interface IntegrationServices {
 		input: TradeCycleStateInput,
 		vaultConfig: VaultConfig
 	) => Promise<TradeCycleState>;
-	getVaultBalances: (
-		vaultConfig: VaultConfig
-	) => Promise<{ usdcWei: bigint; wethWei: bigint }>;
+	getVaultBalances: (vaultConfig: VaultConfig) => Promise<{
+		hubTokenKey: string;
+		tokens: Array<{
+			address: string;
+			decimals: number;
+			isHub: boolean;
+			key: string;
+			symbol: string;
+			wei: bigint;
+		}>;
+		usdcWei: bigint;
+		wethWei: bigint;
+	}>;
 	logCycle: (
 		record: CycleLogRecord,
 		vaultConfig: VaultConfig
