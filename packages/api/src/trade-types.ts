@@ -32,10 +32,38 @@ export const runTradeCycleOutputSchema = z.object({
 	logPointer: z.string(),
 });
 
+export const cycleLogCursorSchema = z.object({
+	occurredAt: z.string(),
+	cycleId: z.string(),
+});
+
+export const getVaultCycleLogsInputSchema = z.object({
+	vaultId: z.string().uuid(),
+	limit: z.number().int().min(1).max(50).optional().default(10),
+	cursor: cycleLogCursorSchema.optional(),
+});
+
+export const getVaultCycleLogsOutputSchema = z.object({
+	items: z.array(
+		z.object({
+			record: z.unknown(),
+			occurredAt: z.string(),
+			cycleId: z.string(),
+		})
+	),
+	nextCursor: cycleLogCursorSchema.nullable(),
+});
+
 export type TradeProposal = z.infer<typeof tradeProposalSchema>;
 export type RiskDecision = z.infer<typeof riskDecisionSchema>;
 export type RunTradeCycleInput = z.infer<typeof runTradeCycleInputSchema>;
 export type RunTradeCycleOutput = z.infer<typeof runTradeCycleOutputSchema>;
+export type GetVaultCycleLogsInput = z.infer<
+	typeof getVaultCycleLogsInputSchema
+>;
+export type GetVaultCycleLogsOutput = z.infer<
+	typeof getVaultCycleLogsOutputSchema
+>;
 
 export interface RouteBuildResult {
 	amountIn: bigint;
@@ -60,6 +88,8 @@ export interface CycleLogRecord {
 	cycleId: string;
 	execution: KeeperExecutionResult | null;
 	input: RunTradeCycleInput;
+	/** How this cycle was run (UI labeling). */
+	mode?: "suggest" | "dryRun" | "live";
 	proposal: TradeProposal;
 	riskDecision: RiskDecision;
 	route: {

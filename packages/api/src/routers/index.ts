@@ -2,6 +2,8 @@ import type { RouterClient } from "@orpc/server";
 import { ORPCError } from "@orpc/server";
 import { authedProcedure, publicProcedure } from "../index";
 import {
+	getVaultCycleLogsInputSchema,
+	getVaultCycleLogsOutputSchema,
 	runTradeCycleInputSchema,
 	runTradeCycleOutputSchema,
 } from "../trade-types";
@@ -44,6 +46,15 @@ export const appRouterTemplate = {
 		.handler(() => {
 			throw new ORPCError("NOT_IMPLEMENTED", {
 				message: "Server must implement runTradeCycle",
+			});
+		}),
+
+	getVaultCycleLogs: authedProcedure
+		.input(getVaultCycleLogsInputSchema)
+		.output(getVaultCycleLogsOutputSchema)
+		.handler(() => {
+			throw new ORPCError("NOT_IMPLEMENTED", {
+				message: "Server must implement getVaultCycleLogs",
 			});
 		}),
 

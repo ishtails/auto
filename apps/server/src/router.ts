@@ -1,6 +1,8 @@
 import { authedProcedure, publicProcedure } from "@auto/api";
 import type { VaultConfig } from "@auto/api/context";
 import {
+	getVaultCycleLogsInputSchema,
+	getVaultCycleLogsOutputSchema,
 	runTradeCycleInputSchema,
 	runTradeCycleOutputSchema,
 } from "@auto/api/trade-types";
@@ -18,11 +20,17 @@ import {
 } from "@auto/contracts/factory-definitions";
 import { env } from "@auto/env/server";
 import { ORPCError } from "@orpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import { createPublicClient, hashTypedData, http, isAddress } from "viem";
 import { getUserWalletAddress } from "./auth/middleware";
 import { db } from "./db";
-import { agentProfiles, users, vaultDeployments, vaults } from "./db/schema";
+import {
+	agentProfiles,
+	users,
+	vaultCycleLogs,
+	vaultDeployments,
+	vaults,
+} from "./db/schema";
 import { debugLog } from "./router/debug";
 
 import { runTradeCycleInternal } from "./router/run-trade-cycle";
@@ -142,6 +150,81 @@ export const appRouter = {
 				});
 				throw error;
 			}
+		}),
+
+	getVaultCycleLogs: authedProcedure
+		.input(getVaultCycleLogsInputSchema)
+		.output(getVaultCycleLogsOutputSchema)
+		.handler(async ({ context, input }) => {
+			if (context.auth?.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Requires user context",
+				});
+			}
+
+			const user = await db.query.users.findFirst({
+				where: eq(users.privyUserId, context.auth.privyUserId),
+			});
+
+			if (!user) {
+				throw new ORPCError("NOT_FOUND", { message: "User not found" });
+			}
+
+			const vault = await db.query.vaults.findFirst({
+				where: and(eq(vaults.id, input.vaultId), eq(vaults.userId, user.id)),
+			});
+
+			if (!vault) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Not authorized to view this vault",
+				});
+			}
+
+			const limit = input.limit ?? 10;
+			const cursor = input.cursor ?? null;
+
+			const whereClause = cursor
+				? and(
+						eq(vaultCycleLogs.vaultId, vault.id),
+						or(
+							lt(vaultCycleLogs.occurredAt, new Date(cursor.occurredAt)),
+							and(
+								eq(vaultCycleLogs.occurredAt, new Date(cursor.occurredAt)),
+								lt(vaultCycleLogs.cycleId, cursor.cycleId)
+							)
+						)
+					)
+				: eq(vaultCycleLogs.vaultId, vault.id);
+
+			const rows = await db
+				.select({
+					record: vaultCycleLogs.record,
+					occurredAt: vaultCycleLogs.occurredAt,
+					cycleId: vaultCycleLogs.cycleId,
+				})
+				.from(vaultCycleLogs)
+				.where(whereClause)
+				.orderBy(desc(vaultCycleLogs.occurredAt), desc(vaultCycleLogs.cycleId))
+				.limit(limit + 1);
+
+			const hasMore = rows.length > limit;
+			const pageRows = hasMore ? rows.slice(0, limit) : rows;
+			const last = pageRows.at(-1) ?? null;
+
+			return {
+				items: pageRows.map((row) => ({
+					record: row.record,
+					occurredAt: row.occurredAt.toISOString(),
+					cycleId: row.cycleId,
+				})),
+				nextCursor:
+					hasMore && last
+						? {
+								occurredAt: last.occurredAt.toISOString(),
+								cycleId: last.cycleId,
+							}
+						: null,
+			};
 		}),
 
 	// ─── Vault Procedures with DB Implementation ───────────────────────

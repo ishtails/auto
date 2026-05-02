@@ -8,12 +8,43 @@ import {
 	CardTitle,
 } from "@auto/ui/components/card";
 import { Activity, RefreshCcw } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { CycleLogEntry } from "./cycle-log-entry";
 import { useVaultDetailContext } from "./vault-detail-context";
 
 export function LiveActivityCard() {
-	const { cycles, setTriggerSheetOpen, runTradeCycle, vault, baseScanTxUrl } =
-		useVaultDetailContext();
+	const {
+		cycles,
+		setTriggerSheetOpen,
+		runTradeCycle,
+		vault,
+		baseScanTxUrl,
+		fetchMoreCycles,
+		hasMoreCycles,
+		isFetchingMoreCycles,
+	} = useVaultDetailContext();
+
+	const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		const node = sentinelRef.current;
+		if (!(node && fetchMoreCycles && hasMoreCycles)) {
+			return;
+		}
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const entry = entries[0];
+				if (entry?.isIntersecting) {
+					fetchMoreCycles();
+				}
+			},
+			{ rootMargin: "200px" }
+		);
+
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [fetchMoreCycles, hasMoreCycles]);
 
 	return (
 		<Card className="border-[#55433d] bg-[#1b1b1b]">
@@ -47,6 +78,18 @@ export function LiveActivityCard() {
 								key={entry.cycleId}
 							/>
 						))}
+						{hasMoreCycles ? (
+							<li className="pt-2">
+								<div
+									className="text-center font-manrope text-[#a38c85] text-xs"
+									ref={sentinelRef}
+								>
+									{isFetchingMoreCycles
+										? "Loading more…"
+										: "Scroll to load more"}
+								</div>
+							</li>
+						) : null}
 					</ul>
 				)}
 			</CardContent>

@@ -19,6 +19,22 @@ const deriveAmountInWei = (balanceWei: bigint, maxTradeBps: number): bigint => {
 	return derived > balanceWei ? balanceWei : derived;
 };
 
+const resolveCycleMode = ({
+	autopilotEnabled,
+	requestedDryRun,
+}: {
+	autopilotEnabled: boolean;
+	requestedDryRun: boolean | undefined;
+}): CycleLogRecord["mode"] => {
+	if (!autopilotEnabled) {
+		return "suggest";
+	}
+	if (requestedDryRun) {
+		return "dryRun";
+	}
+	return "live";
+};
+
 export async function runTradeCycleInternal({
 	context,
 	input,
@@ -50,6 +66,10 @@ export async function runTradeCycleInternal({
 
 	const autopilotEnabled = Boolean(profile.autopilot);
 	const effectiveDryRun = input.dryRun || !autopilotEnabled;
+	const mode = resolveCycleMode({
+		autopilotEnabled,
+		requestedDryRun: input.dryRun,
+	});
 
 	debugLog(cycleId, "resolved vault", {
 		vaultAddress,
@@ -179,6 +199,7 @@ export async function runTradeCycleInternal({
 
 	const cycleRecord = sanitizeCycleLogRecord({
 		cycleId,
+		mode,
 		timestamp: new Date().toISOString(),
 		input: {
 			...input,

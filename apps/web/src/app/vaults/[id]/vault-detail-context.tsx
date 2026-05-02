@@ -27,8 +27,11 @@ export interface VaultDetailContextValue {
 	cycles: CycleLogRecord[];
 
 	faucetUrl: string;
+	fetchMoreCycles?: () => void;
 
 	fundSheetOpen: boolean;
+	hasMoreCycles?: boolean;
+	isFetchingMoreCycles?: boolean;
 	nativeEthBalance: UseQueryResult<bigint, Error>;
 
 	onFundVault: () => void;

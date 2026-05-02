@@ -52,7 +52,7 @@ import { baseSepolia } from "viem/chains";
 import { orpc } from "@/utils/orpc";
 import { LiveActivityCard } from "./live-activity-card";
 import { ManualCycleSheet } from "./manual-cycle-sheet";
-import { useVaultCycles } from "./use-vault-cycles";
+import { useVaultCycleFeed } from "./use-vault-cycle-feed";
 import { VaultDetailProvider } from "./vault-detail-context";
 
 const baseScanAddressUrl = (address: string): string =>
@@ -162,7 +162,7 @@ export default function VaultDetailPage() {
 		orpc.setVaultAutopilot.mutationOptions()
 	);
 
-	const cycles = useVaultCycles({
+	const cycleFeed = useVaultCycleFeed({
 		vaultId,
 		enabled: Boolean(ready && authenticated),
 	});
@@ -325,7 +325,10 @@ export default function VaultDetailPage() {
 				faucetUrl: BASE_SEPOLIA_FAUCET_URL,
 				baseScanAddressUrl,
 				baseScanTxUrl,
-				cycles,
+				cycles: cycleFeed.cycles,
+				fetchMoreCycles: cycleFeed.fetchNextPage,
+				hasMoreCycles: cycleFeed.hasNextPage,
+				isFetchingMoreCycles: cycleFeed.isFetchingNextPage,
 			}}
 		>
 			<main className="min-h-screen bg-[#131313] text-[#e2e2e2]">

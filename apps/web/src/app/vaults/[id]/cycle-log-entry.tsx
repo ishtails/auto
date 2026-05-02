@@ -18,6 +18,12 @@ export function CycleLogEntry({
 }) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const reasoning = entry.proposal.reasoning;
+	let runLabel = "Live";
+	if (entry.mode === "suggest") {
+		runLabel = "Suggest";
+	} else if (entry.mode === "dryRun") {
+		runLabel = "Dry run";
+	}
 
 	const displayReasoning = useMemo(() => {
 		if (!reasoning) {
@@ -38,9 +44,7 @@ export function CycleLogEntry({
 				<p className="font-manrope text-[#a38c85] text-xs">
 					{new Date(entry.timestamp).toLocaleString()}
 				</p>
-				<p className="font-manrope text-[#dbc1b9] text-xs">
-					{entry.input.dryRun ? "Dry run" : "Live"}
-				</p>
+				<p className="font-manrope text-[#dbc1b9] text-xs">{runLabel}</p>
 			</div>
 			<p className="mt-2 font-manrope text-[#f5f5f2] text-sm">
 				<span className="text-[#a38c85]">Action:</span> {entry.proposal.action}
@@ -65,7 +69,10 @@ export function CycleLogEntry({
 			{displayReasoning ? (
 				<div className="mt-2">
 					<p className="font-manrope text-[#a38c85] text-xs">
-						<span className="text-[#a38c85]">Gemini:</span> {displayReasoning}
+						<span className="font-semibold text-[#a38c85]">
+							Agent Reasoning:
+						</span>{" "}
+						{displayReasoning}
 					</p>
 					{shouldShowToggle ? (
 						<button

@@ -41,7 +41,7 @@ async function streamVaultCycles({
 	onCycle: (record: CycleLogRecord) => void;
 }): Promise<void> {
 	const res = await fetch(
-		`${serverBase}/sse/vaults/${vaultId}/cycles?limit=50`,
+		`${serverBase}/sse/vaults/${vaultId}/cycles?limit=10`,
 		{
 			headers: { Authorization: `Bearer ${token}` },
 			signal,
@@ -87,7 +87,14 @@ async function streamVaultCycles({
 	}
 }
 
-export function useVaultCycles({
+/**
+ * Live SSE feed for a vault's most recent cycles.
+ *
+ * - `history` is intentionally capped server-side (default 10)
+ * - new `cycle` events arrive in real time
+ * - older history should be loaded via paginated RPC (see `useVaultCycleFeed`)
+ */
+export function useVaultCyclesSse({
 	vaultId,
 	enabled,
 }: {
@@ -120,7 +127,7 @@ export function useVaultCycles({
 					signal: controller.signal,
 					onHistory: (records) => setCycles(records),
 					onCycle: (record) =>
-						setCycles((prev) => [...prev, record].slice(-50)),
+						setCycles((prev) => [...prev, record].slice(-10)),
 				});
 			})
 			.catch(() => {
