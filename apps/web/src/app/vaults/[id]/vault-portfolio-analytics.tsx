@@ -1,5 +1,6 @@
 "use client";
 
+import { isAllowlistTokenKey } from "@auto/api/token-dex-reference";
 import type { GetVaultBalancesOutput } from "@auto/api/vault-types";
 import {
 	Card,
@@ -11,10 +12,11 @@ import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
-	ChartTooltipContent,
 } from "@auto/ui/components/chart";
-import { Pie, PieChart } from "recharts";
+import { type ComponentProps, useMemo } from "react";
+import { Pie, PieChart, type TooltipContentProps } from "recharts";
 import { formatUnits } from "viem";
+import { useDexscreenerUsdPrices } from "@/lib/dexscreener/use-dexscreener-usd-prices";
 
 const PIE_COLORS: Record<string, string> = {
 	WETH: "#d97757",
@@ -24,6 +26,13 @@ const PIE_COLORS: Record<string, string> = {
 
 const pieColor = (key: string): string => PIE_COLORS[key] ?? "#6b7280";
 
+const usdFormatter = new Intl.NumberFormat(undefined, {
+	currency: "USD",
+	maximumFractionDigits: 6,
+	minimumFractionDigits: 6,
+	style: "currency",
+});
+
 function chartWeight(wei: bigint, decimals: number): number {
 	const hu = Number(formatUnits(wei, decimals));
 	if (!Number.isFinite(hu) || hu <= 0) {
@@ -32,13 +41,48 @@ function chartWeight(wei: bigint, decimals: number): number {
 	return hu;
 }
 
+interface PieRow {
+	decimals: number;
+	human: number;
+	key: string;
+	symbol: string;
+	usd: number | null;
+	wei: string;
+	weight: number;
+}
+
+function buildPieRows(
+	tokens: GetVaultBalancesOutput["tokens"],
+	prices: Partial<Record<string, number | null>> | undefined
+): Omit<PieRow, "weight">[] {
+	return tokens
+		.map((t) => {
+			const human = chartWeight(BigInt(t.wei), t.decimals);
+			const px = isAllowlistTokenKey(t.key) && prices ? prices[t.key] : null;
+			const usd =
+				px != null && Number.isFinite(px) && px > 0 ? human * px : null;
+			return {
+				decimals: t.decimals,
+				human,
+				key: t.key,
+				symbol: t.symbol,
+				usd,
+				wei: t.wei,
+			};
+		})
+		.filter((r) => r.human > 0);
+}
+
 function portfolioChartPanel(input: {
 	chartConfig: ChartConfig;
 	chartData: { fill: string; key: string; name: string; value: number }[];
 	isLoading: boolean;
 	totalWeight: number;
+	valueDisplay: "usd" | "units";
 }) {
-	const { chartConfig, chartData, isLoading, totalWeight } = input;
+	const { chartConfig, chartData, isLoading, totalWeight, valueDisplay } =
+		input;
+
 	if (isLoading) {
 		return (
 			<div className="mx-auto aspect-square max-h-[220px] min-h-[200px] w-full animate-pulse rounded-full bg-[#2a2a2a]" />
@@ -61,12 +105,37 @@ function portfolioChartPanel(input: {
 			<PieChart>
 				<ChartTooltip
 					content={
-						<ChartTooltipContent
-							className="border-[#55433d] bg-[#1b1b1b] text-[#e2e2e2]"
-							hideLabel
-							nameKey="key"
-						/>
+						((props: TooltipContentProps<number, string>) => {
+							const { active, payload } = props;
+							if (!(active && payload?.length)) {
+								return null;
+							}
+							const item = payload[0];
+							const v = Number(item?.value);
+							const display =
+								valueDisplay === "usd"
+									? usdFormatter.format(v)
+									: v.toLocaleString(undefined, { maximumFractionDigits: 8 });
+							const label =
+								typeof item?.name === "string" || typeof item?.name === "number"
+									? String(item.name)
+									: "";
+							return (
+								<div
+									className="rounded-lg border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1.5 font-manrope text-[#e2e2e2] text-xs shadow-xl"
+									style={{ outline: "none" }}
+								>
+									<div className="flex items-center justify-between gap-4">
+										<span className="text-[#a38c85]">{label}</span>
+										<span className="font-mono text-[#f5f5f2] tabular-nums">
+											{display}
+										</span>
+									</div>
+								</div>
+							);
+						}) as ComponentProps<typeof ChartTooltip>["content"]
 					}
+					cursor={false}
 				/>
 				<Pie
 					cx="50%"
@@ -81,6 +150,16 @@ function portfolioChartPanel(input: {
 			</PieChart>
 		</ChartContainer>
 	);
+}
+
+function portfolioPriceFootnote(isError: boolean, useUsdPie: boolean): string {
+	if (isError) {
+		return "Live prices failed to load; chart uses on-chain amounts.";
+	}
+	if (useUsdPie) {
+		return "Pie slices ≈ USD value (DexScreener, Base mainnet reference).";
+	}
+	return "USD estimate unavailable for at least one holding; chart uses raw token amounts.";
 }
 
 function formatTokenAmount(wei: string, decimals: number): string {
@@ -118,20 +197,42 @@ export function VaultPortfolioAnalytics({
 		.filter((t) => !t.isHub)
 		.sort((a, b) => a.key.localeCompare(b.key));
 
-	const nonZeroCount = tokens.filter((t) => BigInt(t.wei) > BigInt(0)).length;
+	const tokenKeysForPrices = useMemo(() => tokens.map((t) => t.key), [tokens]);
 
-	const pieRows = tokens
-		.map((t) => ({
-			key: t.key,
-			symbol: t.symbol,
-			weight: chartWeight(BigInt(t.wei), t.decimals),
-		}))
-		.filter((r) => r.weight > 0);
+	const priceQuery = useDexscreenerUsdPrices(tokenKeysForPrices, {
+		enabled: Boolean(balances?.tokens.length) && !isLoading,
+	});
+
+	const chartPending = isLoading || priceQuery.isPending;
+
+	const { pieRows, useUsdPie, totalUsd } = useMemo(() => {
+		const base = buildPieRows(tokens, priceQuery.data);
+		const allPriced =
+			base.length > 0 &&
+			base.every((r) => r.usd != null && (r.usd as number) > 0);
+		const useUsd = priceQuery.isSuccess && !priceQuery.isError && allPriced;
+		const weighted: PieRow[] = base.map((r) => ({
+			...r,
+			weight: useUsd ? (r.usd as number) : r.human,
+		}));
+		const usdSum = useUsd
+			? weighted.reduce((s, r) => s + (r.usd as number), 0)
+			: null;
+		return {
+			pieRows: weighted,
+			totalUsd: usdSum,
+			useUsdPie: useUsd,
+		};
+	}, [tokens, priceQuery.data, priceQuery.isError, priceQuery.isSuccess]);
+
+	const nonZeroCount = tokens.filter((t) => BigInt(t.wei) > BigInt(0)).length;
 
 	const totalWeight = pieRows.reduce((s, r) => s + r.weight, 0);
 
 	const chartConfig: ChartConfig = {
-		value: { label: "Amount (raw units, not USD)" },
+		value: {
+			label: useUsdPie ? "USD (DexScreener / Base)" : "Token amount",
+		},
 		...Object.fromEntries(
 			pieRows.map((row) => [
 				row.key,
@@ -147,6 +248,8 @@ export function VaultPortfolioAnalytics({
 		value: row.weight,
 	}));
 
+	const priceFootnote = portfolioPriceFootnote(priceQuery.isError, useUsdPie);
+
 	return (
 		<Card className="border-[#55433d] bg-[#1b1b1b]">
 			<CardHeader className="pb-2">
@@ -155,7 +258,7 @@ export function VaultPortfolioAnalytics({
 				</CardTitle>
 				<p className="font-manrope text-[#6b5d58] text-xs leading-relaxed">
 					Hub balance is trade-sized in cycles; other rows are allowlisted
-					assets. Chart uses raw token amounts (not USD).
+					assets. {priceFootnote}
 				</p>
 			</CardHeader>
 			<CardContent>
@@ -170,6 +273,28 @@ export function VaultPortfolioAnalytics({
 									? "…"
 									: `${formatTokenAmount(hub.wei, hub.decimals)} ${hub.symbol}`}
 							</p>
+							{(() => {
+								if (
+									!(
+										hub &&
+										isAllowlistTokenKey(hub.key) &&
+										priceQuery.data?.[hub.key] != null &&
+										!chartPending
+									)
+								) {
+									return null;
+								}
+								const px = priceQuery.data[hub.key] as number;
+								return (
+									<p className="mt-1 font-manrope text-[#6b5d58] text-xs">
+										≈{" "}
+										{usdFormatter.format(
+											chartWeight(BigInt(hub.wei), hub.decimals) * px
+										)}{" "}
+										<span className="text-[#55433d]">ref. USD</span>
+									</p>
+								);
+							})()}
 						</div>
 
 						<div>
@@ -179,6 +304,19 @@ export function VaultPortfolioAnalytics({
 							<ul className="space-y-2">
 								{assets.map((t) => {
 									const zero = BigInt(t.wei) === BigInt(0);
+									const px =
+										isAllowlistTokenKey(t.key) && priceQuery.data
+											? priceQuery.data[t.key]
+											: null;
+									const human = chartWeight(BigInt(t.wei), t.decimals);
+									const estUsd =
+										!zero &&
+										px != null &&
+										Number.isFinite(px) &&
+										px > 0 &&
+										!chartPending
+											? human * px
+											: null;
 									return (
 										<li
 											className="flex items-baseline justify-between gap-4 border-[#2a2a2a] border-b pb-2 last:border-b-0"
@@ -195,11 +333,22 @@ export function VaultPortfolioAnalytics({
 												{t.symbol}
 											</span>
 											<span
-												className={`shrink-0 font-mono text-sm tabular-nums ${zero ? "text-[#55433d]" : "text-[#f5f5f2]"}`}
+												className={`shrink-0 text-right font-mono text-sm tabular-nums ${zero ? "text-[#55433d]" : "text-[#f5f5f2]"}`}
 											>
-												{isLoading
-													? "…"
-													: `${formatTokenAmount(t.wei, t.decimals)} ${t.symbol}`}
+												{isLoading ? (
+													"…"
+												) : (
+													<>
+														<span className="block">
+															{formatTokenAmount(t.wei, t.decimals)} {t.symbol}
+														</span>
+														{estUsd == null || estUsd <= 0 ? null : (
+															<span className="block font-manrope text-[#6b5d58] text-xs">
+																≈ {usdFormatter.format(estUsd)}
+															</span>
+														)}
+													</>
+												)}
 											</span>
 										</li>
 									);
@@ -211,23 +360,35 @@ export function VaultPortfolioAnalytics({
 							{isLoading
 								? "Loading balances…"
 								: `${nonZeroCount} of ${tokens.length} tracked tokens on-chain`}
+							{useUsdPie && totalUsd != null && totalUsd > 0 ? (
+								<>
+									{" "}
+									· Est. total ≈ {usdFormatter.format(totalUsd)}{" "}
+									<span className="text-[#55433d]">(mainnet ref.)</span>
+								</>
+							) : null}
 						</p>
 					</div>
 
 					<div className="flex shrink-0 flex-col items-center gap-3 lg:w-[240px]">
 						<div
-							aria-label="Portfolio mix by token amount"
+							aria-label={
+								useUsdPie
+									? "Portfolio mix by USD value"
+									: "Portfolio mix by token amount"
+							}
 							className="w-full max-w-[220px]"
 							role="img"
 						>
 							{portfolioChartPanel({
 								chartConfig,
 								chartData,
-								isLoading,
+								isLoading: chartPending,
 								totalWeight,
+								valueDisplay: useUsdPie ? "usd" : "units",
 							})}
 						</div>
-						{!isLoading && totalWeight > 0 && pieRows.length > 1 ? (
+						{!chartPending && totalWeight > 0 && pieRows.length > 1 ? (
 							<ul className="w-full space-y-1.5">
 								{pieRows.map((row) => (
 									<li
