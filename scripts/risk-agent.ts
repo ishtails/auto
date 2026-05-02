@@ -27,12 +27,17 @@ interface RiskDecision {
 function evaluateRisk(proposal: TradeProposal): RiskDecision {
 	const amount = BigInt(proposal.amountInWei);
 
-	// Reject HOLD actions
+	// HOLD is an approved no-op (mirrors server deterministic risk gate)
 	if (proposal.action === "HOLD") {
-		return { decision: "REJECT", reason: "HOLD action - no trade needed" };
+		if (amount !== 0n) {
+			return { decision: "REJECT", reason: "HOLD requires amountInWei=0" };
+		}
+		return {
+			decision: "APPROVE",
+			reason: "HOLD — no trade",
+		};
 	}
 
-	// Reject if amount is 0
 	if (amount <= 0n) {
 		return { decision: "REJECT", reason: "amount must be positive" };
 	}

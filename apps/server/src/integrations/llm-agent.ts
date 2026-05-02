@@ -4,11 +4,13 @@ import type { Schema } from "@google/genai";
 import { GoogleGenAI, Type } from "@google/genai";
 
 export interface LlmStateInput {
+	allowlistLines: string[];
+	/** Max spend from WETH hub slice (wei) for trades that spend WETH. */
 	amountInWei: bigint;
+	hubTokenAddress: string;
+	mockTokenOut: string;
+	portfolioSummary: string;
 	priceHint?: string;
-	tokenIn: string;
-	tokenOut: string;
-	vaultBalanceWei: bigint;
 }
 
 export class LlmAgent {
@@ -33,6 +35,35 @@ export class LlmAgent {
 		this.ai = new GoogleGenAI({ apiKey });
 	}
 
+	private normalizeAndValidateProposal(
+		parsed: TradeProposal,
+		allowlist: Set<string>
+	): TradeProposal {
+		const tokenIn = parsed.tokenIn.toLowerCase();
+		const tokenOut = parsed.tokenOut.toLowerCase();
+		if (!allowlist.has(tokenIn)) {
+			throw new Error(`LLM tokenIn not on allowlist: ${parsed.tokenIn}`);
+		}
+		if (!allowlist.has(tokenOut)) {
+			throw new Error(`LLM tokenOut not on allowlist: ${parsed.tokenOut}`);
+		}
+
+		if (parsed.action === "HOLD") {
+			return {
+				...parsed,
+				amountInWei: "0",
+				tokenIn,
+				tokenOut,
+			};
+		}
+
+		return {
+			...parsed,
+			tokenIn,
+			tokenOut,
+		};
+	}
+
 	async generateProposal(
 		input: LlmStateInput,
 		memory?: {
@@ -42,21 +73,26 @@ export class LlmAgent {
 			status: string;
 		}[],
 		marketContext?: string,
-		userSystemPrompt?: string
+		userSystemPrompt?: string,
+		allowlist?: Set<string>
 	): Promise<TradeProposal> {
-		// Mock mode: return predefined response without calling Gemini
+		const allow = allowlist ?? new Set<string>();
+
 		if (this.mockMode) {
 			console.log("[LLM] Mock mode enabled, returning predefined response");
-			return {
-				action: "BUY",
-				tokenIn: input.tokenIn,
-				tokenOut: input.tokenOut,
-				amountInWei: input.amountInWei.toString(),
-				reasoning: "Mock LLM response for testing - executing strategic trade",
-			};
+			return this.normalizeAndValidateProposal(
+				{
+					action: "BUY",
+					amountInWei: input.amountInWei.toString(),
+					reasoning:
+						"Mock LLM: strategic BUY from WETH hub into USDC for integration tests",
+					tokenIn: input.hubTokenAddress,
+					tokenOut: input.mockTokenOut,
+				},
+				allow
+			);
 		}
 
-		// Build memory context if available
 		let memoryContext = "";
 		if (memory && memory.length > 0) {
 			memoryContext = [
@@ -67,7 +103,7 @@ export class LlmAgent {
 						`${i + 1}. [${m.timestamp}] Action: ${m.action} | Status: ${m.status} | Reasoning: ${m.reasoning}`
 				),
 				"",
-				"INSTRUCTIONS: Learn from your past trades. If your last trade failed due to slippage, be more conservative. If you just bought 5 minutes ago, consider holding. Use this history to make better decisions.",
+				"INSTRUCTIONS: Learn from your past trades. If your last trade failed due to slippage, be more conservative. If you just bought recently, consider holding. Use this history to make better decisions.",
 				"=== END MEMORY ===",
 			].join("\n");
 		}
@@ -77,11 +113,25 @@ export class LlmAgent {
 			userSystemPrompt ? userSystemPrompt.trim() : undefined,
 			userSystemPrompt ? "=== END USER INSTRUCTIONS ===" : undefined,
 			"",
-			"OPERATIONAL INSTRUCTIONS:",
-			"- If MARKET CONTEXT is provided, use it to ground your action (trend, momentum, volume imbalance).",
-			"- If MARKET CONTEXT is missing/unavailable, proceed using on-chain state + memory; mention uncertainty in reasoning.",
-			"- Use MEMORY to avoid repeating recent mistakes and to avoid over-trading back-to-back.",
-			"- Prefer HOLD when data is weak, contradictory, or liquidity/volume looks unhealthy.",
+			"ROLE: You are a multi-asset fund manager on Base Sepolia. You rotate among the allowlisted testnet tokens, using WETH as the liquidity hub.",
+			"",
+			"HARD RULES:",
+			"- tokenIn and tokenOut MUST be copied EXACTLY from the ALLOWLIST testnet addresses (case-insensitive ok in JSON; use valid 0x addresses).",
+			"- Never invent, substitute, or mainnet-swap addresses: execution is ONLY on testnet addresses listed.",
+			"- MARKET CONTEXT is from Base MAINNET for price/liquidity signal only; it is NOT executable.",
+			"",
+			"ACTION SEMANTICS (exact-input swap):",
+			"- BUY: acquire tokenOut by spending tokenIn (you choose direction, e.g. WETH → alt or stable → WETH).",
+			"- SELL: spend tokenIn to receive tokenOut (same mechanics; name reflects risk-off vs risk-on intent).",
+			'- HOLD: no swap. Set amountInWei to "0". tokenIn/tokenOut should still be valid allowlist addresses (e.g. hub vs a target you considered).',
+			"",
+			"SIZING:",
+			`- When spending the hub token (WETH), prefer amountInWei <= maxSpendFromHubWei=${input.amountInWei.toString()}.`,
+			"- When spending a non-hub token, use an amount consistent with that token's balance in PORTFOLIO (do not exceed what the vault likely holds).",
+			"",
+			"DECISION STYLE:",
+			"- Use MAINNET reference data for momentum, volume, liquidity health; prefer HOLD when data is weak or contradictory.",
+			"- Diversify: do not fixate on a single alt every cycle if memory and signals suggest rotation.",
 		]
 			.filter(
 				(line): line is string => typeof line === "string" && line.length > 0
@@ -93,27 +143,24 @@ export class LlmAgent {
 			"",
 			systemGuidance,
 			"",
-			"TRADING RULES:",
-			`- tokenIn=${input.tokenIn} is the token the vault CURRENTLY HOLDS (what we SELL)`,
-			`- tokenOut=${input.tokenOut} is the token the vault WANTS TO ACQUIRE (what we BUY)`,
-			"- Action BUY means: Buy more tokenOut by spending tokenIn",
-			"- Action SELL means: Sell tokenIn to acquire tokenOut",
-			"- Action HOLD means: Do nothing",
+			"=== ALLOWLIST (testnet execution addresses; ONLY these may appear as tokenIn/tokenOut) ===",
+			...input.allowlistLines,
+			"=== END ALLOWLIST ===",
 			"",
-			`vaultBalanceWei=${input.vaultBalanceWei.toString()}`,
-			`tokenIn=${input.tokenIn} (vault holds this - SELL)`,
-			`tokenOut=${input.tokenOut} (vault wants this - BUY)`,
-			`amountInWei=${input.amountInWei.toString()}`,
+			"=== PORTFOLIO (vault balances, Base Sepolia) ===",
+			input.portfolioSummary,
+			"=== END PORTFOLIO ===",
+			"",
+			`hubTokenAddress(WETH)=${input.hubTokenAddress}`,
+			`maxSpendFromHubWei=${input.amountInWei.toString()}`,
 			`priceHint=${input.priceHint ?? "unknown"}`,
 			marketContext ? "" : undefined,
-			marketContext ? "=== MARKET CONTEXT (REAL-TIME) ===" : undefined,
 			marketContext ? marketContext : undefined,
-			marketContext ? "=== END MARKET CONTEXT ===" : undefined,
 			memoryContext,
 			"",
-			`schema={"action":"BUY|SELL|HOLD","tokenIn":"0x...","tokenOut":"0x...","amountInWei":"uint","reasoning":"string"}`,
+			`schema={"action":"BUY|SELL|HOLD","tokenIn":"0x...","tokenOut":"0x...","amountInWei":"uint string","reasoning":"string"}`,
 			"",
-			"CRITICAL: Use the exact tokenIn and tokenOut addresses provided above. Do NOT swap them.",
+			'CRITICAL: For HOLD, amountInWei must be exactly "0".',
 		]
 			.filter((line): line is string => typeof line === "string")
 			.join("\n");
@@ -133,13 +180,14 @@ export class LlmAgent {
 			throw new Error("Gemini returned empty response.");
 		}
 
-		let parsed: unknown;
+		let parsedRaw: unknown;
 		try {
-			parsed = JSON.parse(text);
+			parsedRaw = JSON.parse(text);
 		} catch {
 			throw new Error("Gemini returned invalid JSON.");
 		}
 
-		return tradeProposalSchema.parse(parsed);
+		const parsed = tradeProposalSchema.parse(parsedRaw);
+		return this.normalizeAndValidateProposal(parsed, allow);
 	}
 }

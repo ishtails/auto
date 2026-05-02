@@ -8,6 +8,7 @@ import type {
 import { env } from "@auto/env/server";
 import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
+import { TOKENS } from "../config";
 import { ChainStateClient } from "../integrations/chain-state";
 import { cacheCycleLogToDb } from "./cycle-log-cache";
 import { sanitizeCycleLogRecord } from "./cycle-log-sanitize";
@@ -175,7 +176,7 @@ export async function runTradeCycleInternal({
 	}
 	if (!amountInInput) {
 		const chainState = new ChainStateClient(env.CHAIN_RPC_URL, vaultAddress);
-		const balanceWei = await chainState.getVaultBalance(profile.tokenIn);
+		const balanceWei = await chainState.getVaultBalance(TOKENS.WETH.address);
 		const derived = deriveAmountInWei(balanceWei, profile.maxTradeBps);
 		debugLog(cycleId, "derived amountIn", {
 			balanceWei: balanceWei.toString(),
@@ -201,12 +202,13 @@ export async function runTradeCycleInternal({
 
 	const amountIn = BigInt(effectiveAmountIn);
 	const state = await context.services.getState(
-		{ amountIn, tokenIn: "WETH", tokenOut: "USDC" },
+		{ amountIn, maxTradeBps: profile.maxTradeBps },
 		vaultConfig
 	);
 	debugLog(cycleId, "state loaded", {
-		vaultBalanceWei: state.vaultBalanceWei.toString(),
+		hubBalanceWei: state.vaultBalanceWei.toString(),
 		requestedAmountInWei: state.requestedAmountInWei.toString(),
+		maxTradeBps: state.maxTradeBps,
 	});
 
 	const { proposal, llmAvailable } = await requireTradeProposal({
@@ -328,6 +330,8 @@ export async function runTradeCycleInternal({
 			deterministicRisk.decision === "REJECT"
 				? deterministicRisk.reason
 				: axlRisk.reason;
+	} else if (proposal.action === "HOLD") {
+		displayReason = deterministicRisk.reason;
 	}
 
 	debugLog(cycleId, "success", {

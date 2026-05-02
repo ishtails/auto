@@ -1,6 +1,6 @@
 import type { IntegrationServices } from "@auto/api/context";
 import type { TradeProposal } from "@auto/api/trade-types";
-import { env } from "@auto/env/server";
+import { BASE_MAINNET_CHAIN_ID, TOKENS } from "../config";
 import { getDexScreenerMarketContext } from "../integrations/dexscreener";
 
 export async function buildRuleBasedFallbackProposal({
@@ -11,9 +11,9 @@ export async function buildRuleBasedFallbackProposal({
 	state: Awaited<ReturnType<IntegrationServices["getState"]>>;
 }): Promise<TradeProposal> {
 	const market = await getDexScreenerMarketContext({
-		chainId: env.CHAIN_ID,
-		tokenIn: state.tokenIn,
-		tokenOut: state.tokenOut,
+		chainId: BASE_MAINNET_CHAIN_ID,
+		tokenIn: TOKENS.WETH.BASE_MAINNET_ADDRESS,
+		tokenOut: TOKENS.USDC.BASE_MAINNET_ADDRESS,
 	}).catch(() => null);
 
 	// Conservative defaults: only trade when signals are strong and liquidity exists.
@@ -59,8 +59,8 @@ export async function buildRuleBasedFallbackProposal({
 
 	return {
 		action,
-		tokenIn: state.tokenIn,
-		tokenOut: state.tokenOut,
+		tokenIn: TOKENS.WETH.address,
+		tokenOut: TOKENS.USDC.address,
 		amountInWei,
 		reasoning: [
 			"Rule-based fallback activated because the LLM was unavailable.",

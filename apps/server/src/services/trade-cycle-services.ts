@@ -1,6 +1,13 @@
 import type { IntegrationServices } from "@auto/api/context";
 import type { RiskDecision, TradeProposal } from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
+import {
+	BASE_MAINNET_CHAIN_ID,
+	buildTokenAllowlistPromptLines,
+	getDecimalsForTokenAddress,
+	getWhitelistedTradeAddresses,
+	TOKENS,
+} from "../config";
 import { db } from "../db";
 import { AxlTransport } from "../integrations/axl-transport";
 import { ChainStateClient } from "../integrations/chain-state";
@@ -135,28 +142,34 @@ export const createIntegrationServices = (): IntegrationServices => {
 		env.OG_FLOW_CONTRACT
 	);
 
-	const allowedTokens = new Set([
-		env.TOKEN_WETH.toLowerCase(),
-		env.TOKEN_USDC.toLowerCase(),
-	]);
+	const allowedTokens = getWhitelistedTradeAddresses();
 
 	return {
-		getState: async ({ amountIn, tokenIn, tokenOut }, vaultConfig) => {
-			const tokenInAddress = vaultConfig.tokenIn;
-			const tokenOutAddress = vaultConfig.tokenOut;
+		getState: async ({ amountIn, maxTradeBps }, vaultConfig) => {
 			const chainStateDynamic = new ChainStateClient(
 				env.CHAIN_RPC_URL,
 				vaultConfig.vaultAddress
 			);
 
-			const vaultBalanceWei =
-				await chainStateDynamic.getVaultBalance(tokenInAddress);
+			const portfolioBalancesWei: Record<string, string> = {};
+			for (const t of Object.values(TOKENS)) {
+				const bal = await chainStateDynamic.getVaultBalance(t.address);
+				portfolioBalancesWei[t.address.toLowerCase()] = bal.toString();
+			}
+
+			const hub = TOKENS.WETH.address;
+			const hubBal = BigInt(portfolioBalancesWei[hub.toLowerCase()] ?? "0");
+
 			return {
-				vaultBalanceWei,
-				priceHint: `${tokenIn}/${tokenOut}`,
+				hubTokenAddress: hub,
+				maxTradeBps,
+				portfolioBalancesWei,
+				priceHint:
+					"multi-asset WETH hub on Base Sepolia; DexScreener panels are Base mainnet reference only",
 				requestedAmountInWei: amountIn,
-				tokenIn: tokenInAddress,
-				tokenOut: tokenOutAddress,
+				tokenIn: hub,
+				tokenOut: TOKENS.USDC.address,
+				vaultBalanceWei: hubBal,
 			};
 		},
 		getVaultBalances: async (vaultConfig) => {
@@ -203,31 +216,56 @@ export const createIntegrationServices = (): IntegrationServices => {
 							}))
 						);
 
-			const market = await getDexScreenerMarketContext({
-				chainId: env.CHAIN_ID,
-				tokenIn: state.tokenIn,
-				tokenOut: state.tokenOut,
-			});
-
-			const marketContext = buildDexScreenerPromptContext(market);
+			const wethMain = TOKENS.WETH.BASE_MAINNET_ADDRESS;
+			const sections: string[] = [
+				"=== MARKET CONTEXT: Base MAINNET — REFERENCE ONLY (execution is Base Sepolia testnet) ===",
+			];
+			for (const [key, t] of Object.entries(TOKENS)) {
+				if (key === "WETH") {
+					continue;
+				}
+				const mainOut = t.BASE_MAINNET_ADDRESS;
+				if (!mainOut) {
+					continue;
+				}
+				const m = await getDexScreenerMarketContext({
+					chainId: BASE_MAINNET_CHAIN_ID,
+					tokenIn: wethMain,
+					tokenOut: mainOut,
+				});
+				sections.push(
+					`--- ${key} vs WETH (mainnet reference) ---`,
+					buildDexScreenerPromptContext(m) ?? "unavailable"
+				);
+			}
+			const marketContext = sections.join("\n\n");
 			if (isDebugEnabled()) {
-				console.log("[DexScreener] market context", {
-					available: Boolean(marketContext),
-					market,
+				console.log("[DexScreener] batched mainnet reference context", {
+					chars: marketContext.length,
 				});
 			}
 
+			const portfolioSummary = Object.entries(TOKENS)
+				.map(([key, t]) => {
+					const bal =
+						state.portfolioBalancesWei[t.address.toLowerCase()] ?? "0";
+					return `${key}(${t.symbol}) testnet=${t.address} wei=${bal}`;
+				})
+				.join("\n");
+
 			return llm.generateProposal(
 				{
-					vaultBalanceWei: state.vaultBalanceWei,
-					priceHint: state.priceHint,
-					tokenIn: state.tokenIn,
-					tokenOut: state.tokenOut,
+					allowlistLines: buildTokenAllowlistPromptLines(),
 					amountInWei: state.requestedAmountInWei,
+					hubTokenAddress: state.hubTokenAddress,
+					mockTokenOut: TOKENS.USDC.address,
+					portfolioSummary,
+					priceHint: state.priceHint,
 				},
 				memory,
 				marketContext,
-				vaultConfig.geminiSystemPrompt
+				vaultConfig.geminiSystemPrompt,
+				allowedTokens
 			);
 		},
 		sendToRiskAgent: async (proposal: TradeProposal) => {
@@ -245,9 +283,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 		evaluateRisk: (proposal, state, _vaultConfig) =>
 			Promise.resolve(
 				evaluateRisk(proposal, {
-					vaultBalanceWei: state.vaultBalanceWei,
 					allowedTokens,
-					maxDrawdownBps: 1_000n,
+					maxDrawdownBps: BigInt(state.maxTradeBps),
+					portfolioBalancesWei: state.portfolioBalancesWei,
 				})
 			),
 		buildRoute: (proposal, maxSlippageBps, vaultConfig) => {
@@ -256,10 +294,19 @@ export const createIntegrationServices = (): IntegrationServices => {
 				recipientAddress: vaultConfig.vaultAddress,
 				routerAddress: env.UNISWAP_ROUTER_ADDRESS,
 				rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
-				tokenInDecimals: env.TOKEN_WETH_DECIMALS,
-				tokenOutDecimals: env.TOKEN_USDC_DECIMALS,
+				tradeApi: env.UNISWAP_TRADE_API_KEY
+					? {
+							apiKey: env.UNISWAP_TRADE_API_KEY,
+							baseUrl: env.UNISWAP_TRADE_API_URL,
+							permit2Disabled: env.UNISWAP_API_PERMIT2_DISABLED,
+							universalRouterVersion: env.UNISWAP_UNIVERSAL_ROUTER_VERSION,
+						}
+					: undefined,
 			});
-			return dynamicUniswap.buildRoute(proposal, maxSlippageBps);
+			return dynamicUniswap.buildRoute(proposal, maxSlippageBps, {
+				tokenInDecimals: getDecimalsForTokenAddress(proposal.tokenIn),
+				tokenOutDecimals: getDecimalsForTokenAddress(proposal.tokenOut),
+			});
 		},
 		executeVaultTrade: async ({ route, tokenOut: _tokenOut, vaultConfig }) => {
 			const encoded = encodeVaultExecuteTrade(vaultConfig.vaultAddress, route);

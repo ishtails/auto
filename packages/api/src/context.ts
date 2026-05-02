@@ -8,15 +8,21 @@ import type {
 
 export interface TradeCycleStateInput {
 	amountIn: bigint;
-	tokenIn: string;
-	tokenOut: string;
+	/** Vault policy cap (basis points); used for deterministic risk sizing. */
+	maxTradeBps: number;
 }
 
 export interface TradeCycleState {
+	hubTokenAddress: string;
+	maxTradeBps: number;
+	/** Lowercase testnet token address → vault balance wei (all whitelisted assets). */
+	portfolioBalancesWei: Record<string, string>;
 	priceHint?: string;
 	requestedAmountInWei: bigint;
+	/** Default routing hints for fallbacks (WETH/USDC on testnet). */
 	tokenIn: string;
 	tokenOut: string;
+	/** WETH (hub) balance on testnet; sizing cap reference. */
 	vaultBalanceWei: bigint;
 }
 
