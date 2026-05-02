@@ -7,7 +7,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { resolveAuth } from "./auth/middleware";
 import { appRouter } from "./router";
-import { registerCycleStreamRoutes } from "./routes/cycle-stream";
+import { registerCycleStreamRoutes } from "./router/cycle-stream";
 import { createIntegrationServices } from "./services/trade-cycle-services";
 import "./services/deploy-queue";
 import { startupSync } from "./services/startup-sync";

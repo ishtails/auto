@@ -6,7 +6,7 @@ import { streamSSE } from "hono/streaming";
 import { resolveAuth } from "../auth/middleware";
 import { db } from "../db";
 import { vaultCycleLogs } from "../db/schema";
-import { getOwnedActiveVault } from "../router";
+import { getOwnedActiveVault } from "./owned-vault";
 
 const clampInt = (value: number, min: number, max: number): number =>
 	Math.min(Math.max(value, min), max);
