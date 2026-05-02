@@ -258,14 +258,14 @@ export function ManualCycleSheet() {
 								Last response
 							</p>
 							{lastError ? (
-								<div className="mt-2 grid gap-2">
+								<div className="mt-2 grid gap-2 bg-red-500">
 									<p className="font-manrope text-[#ffb59e] text-sm">
 										{lastError}
 									</p>
 									{lastErrorReason ? (
-										<p className="font-manrope text-[#a38c85] text-xs">
-											Details: {lastErrorReason}
-										</p>
+										<pre className="font-manrope text-[#a38c85] text-xs">
+											{JSON.stringify(lastErrorReason, null, 2)}
+										</pre>
 									) : null}
 								</div>
 							) : (

@@ -13,6 +13,7 @@ import { cacheCycleLogToDb } from "./cycle-log-cache";
 import { sanitizeCycleLogRecord } from "./cycle-log-sanitize";
 import { debugLog, requireNumber, requireString } from "./debug";
 import { getOwnedActiveVault } from "./owned-vault";
+import { buildRuleBasedFallbackProposal } from "./rule-based-fallback";
 
 const deriveAmountInWei = (balanceWei: bigint, maxTradeBps: number): bigint => {
 	const derived = (balanceWei * BigInt(maxTradeBps)) / 10_000n;
@@ -40,23 +41,79 @@ const requireTradeProposal = async ({
 	state,
 	vaultConfig,
 	cycleId,
+	autopilotEnabled,
+	requestedDryRun,
 }: {
 	services: IntegrationServices;
 	state: Awaited<ReturnType<IntegrationServices["getState"]>>;
 	vaultConfig: VaultConfig;
 	cycleId: string;
+	autopilotEnabled: boolean;
+	requestedDryRun: boolean | undefined;
 }) => {
 	try {
-		return await services.generateProposal(state, vaultConfig);
+		const proposal = await services.generateProposal(state, vaultConfig);
+		return { proposal, llmAvailable: true as const };
 	} catch (error) {
 		const err = error instanceof Error ? error : new Error(String(error));
 		debugLog(cycleId, "llm failed", { message: err.message });
+		// If Autopilot is enabled and this isn't a user-requested preview run, fall
+		// back to a deterministic rule-based proposal instead of blocking execution.
+		if (autopilotEnabled && !requestedDryRun) {
+			const fallback = await buildRuleBasedFallbackProposal({
+				cycleId,
+				state,
+			});
+			debugLog(cycleId, "llm fallback proposal", fallback);
+			return { proposal: fallback, llmAvailable: false as const };
+		}
+
 		throw new ORPCError("INTERNAL_SERVER_ERROR", {
 			message:
 				"The agent couldn’t generate a recommendation right now. Please try again.",
 			data: { reason: err.message },
 		});
 	}
+};
+
+const resolveExecutionPlan = ({
+	cycleId,
+	effectiveDryRun,
+	llmAvailable,
+	proposalAction,
+	riskDecision,
+	autopilotEnabled,
+	requestedDryRun,
+}: {
+	cycleId: string;
+	effectiveDryRun: boolean;
+	llmAvailable: boolean;
+	proposalAction: CycleLogRecord["proposal"]["action"];
+	riskDecision: { decision: "APPROVE" | "REJECT" };
+	autopilotEnabled: boolean;
+	requestedDryRun: boolean | undefined;
+}) => {
+	if (!llmAvailable) {
+		debugLog(cycleId, "skipping execution: llm unavailable", {
+			autopilotEnabled,
+			requestedDryRun: requestedDryRun ?? null,
+		});
+	}
+
+	if (!effectiveDryRun && proposalAction === "HOLD") {
+		debugLog(cycleId, "skipping execution: proposal is HOLD", null);
+	}
+
+	const shouldExecute =
+		!effectiveDryRun &&
+		llmAvailable &&
+		proposalAction !== "HOLD" &&
+		riskDecision.decision === "APPROVE";
+
+	const dryRunForRecord =
+		effectiveDryRun || !llmAvailable || proposalAction === "HOLD";
+
+	return { shouldExecute, dryRunForRecord };
 };
 
 export async function runTradeCycleInternal({
@@ -152,11 +209,13 @@ export async function runTradeCycleInternal({
 		requestedAmountInWei: state.requestedAmountInWei.toString(),
 	});
 
-	const proposal = await requireTradeProposal({
+	const { proposal, llmAvailable } = await requireTradeProposal({
 		services: context.services,
 		state,
 		vaultConfig,
 		cycleId,
+		autopilotEnabled,
+		requestedDryRun: input.dryRun,
 	});
 	debugLog(cycleId, "proposal", {
 		action: proposal.action,
@@ -164,6 +223,7 @@ export async function runTradeCycleInternal({
 		tokenOut: proposal.tokenOut,
 		amountInWei: proposal.amountInWei,
 		reasoning: proposal.reasoning,
+		llmAvailable,
 	});
 
 	const deterministicRisk = await context.services.evaluateRisk(
@@ -187,7 +247,17 @@ export async function runTradeCycleInternal({
 	let execution: KeeperExecutionResult | null = null;
 	let route: CycleLogRecord["route"] = null;
 
-	if (!effectiveDryRun && riskDecision.decision === "APPROVE") {
+	const { shouldExecute, dryRunForRecord } = resolveExecutionPlan({
+		cycleId,
+		effectiveDryRun,
+		llmAvailable,
+		proposalAction: proposal.action,
+		riskDecision,
+		autopilotEnabled,
+		requestedDryRun: input.dryRun,
+	});
+
+	if (shouldExecute) {
 		const routeResult = await context.services.buildRoute(
 			proposal,
 			effectiveMaxSlippageBps,
@@ -232,7 +302,7 @@ export async function runTradeCycleInternal({
 		timestamp: new Date().toISOString(),
 		input: {
 			...input,
-			dryRun: effectiveDryRun,
+			dryRun: dryRunForRecord,
 			amountIn: effectiveAmountIn,
 			maxSlippageBps: effectiveMaxSlippageBps,
 		},

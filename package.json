@@ -38,8 +38,8 @@
     "dev:server": "turbo -F server dev",
     "check": "ultracite fix",
     "purge:modules": "./scripts/purge.sh",
-    "db:push:staging": "bun --filter server push:staging",
-    "db:push:local": "bun --filter server push:local",
+    "db:push:staging": "bun --filter server db:push:staging",
+    "db:push:local": "bun --filter server db:push:local",
     "wipe:local": "bun --filter server wipe:local",
     "wipe:staging": "bun --filter server wipe:staging",
     "shadcn": "bun --filter @auto/ui shadcn"

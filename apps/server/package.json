@@ -13,8 +13,8 @@
     "test": "bun test",
     "wipe:local": "bun run --env-file=.env.local scripts/db-wipe.ts",
     "wipe:staging": "bun run --env-file=.env.staging scripts/db-wipe.ts",
-    "push:staging": "DRIZZLE_ENV_FILE=.env.staging bun x drizzle-kit push",
-    "push:local": "DRIZZLE_ENV_FILE=.env.local bun x drizzle-kit push"
+    "db:push:staging": "DRIZZLE_ENV_FILE=.env.staging bun x drizzle-kit push",
+    "db:push:local": "DRIZZLE_ENV_FILE=.env.local bun x drizzle-kit push"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.8",

@@ -10,6 +10,10 @@ export const evaluateRisk = (
 	proposal: TradeProposal,
 	state: RiskStateInput
 ): RiskDecision => {
+	if (proposal.action === "HOLD") {
+		return { decision: "REJECT", reason: "proposal action is HOLD" };
+	}
+
 	const tokenIn = proposal.tokenIn.toLowerCase();
 	if (!state.allowedTokens.has(tokenIn)) {
 		return { decision: "REJECT", reason: "tokenIn not allowlisted" };
@@ -28,10 +32,6 @@ export const evaluateRisk = (
 
 	if (amountIn > cap) {
 		return { decision: "REJECT", reason: "exceeds max drawdown cap" };
-	}
-
-	if (proposal.action === "HOLD") {
-		return { decision: "REJECT", reason: "proposal action is HOLD" };
 	}
 
 	return {

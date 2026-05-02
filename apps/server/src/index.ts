@@ -73,7 +73,11 @@ app.use("/rpc/*", async (c, next) => {
 });
 
 // Health check
-app.get("/", (c) => c.text("OK"));
+app.get("/", (c) =>
+	c.text("OK", 200, {
+		"content-type": "text/plain; charset=utf-8",
+	})
+);
 
 // Diagnostics endpoint
 app.get("/diagnostics", async (c) => {
