@@ -14,7 +14,9 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@auto/ui/components/sheet";
+import { Toggle } from "@auto/ui/components/toggle";
 import { useQueryClient } from "@tanstack/react-query";
+import { Circle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatEther } from "viem";
@@ -44,6 +46,7 @@ export function ManualCycleSheet() {
 		null
 	);
 	const [lastError, setLastError] = useState<string | null>(null);
+	const autopilotEnabled = Boolean(vault?.autopilot);
 
 	const executionStatus = (() => {
 		if (dryRun) {
@@ -136,18 +139,31 @@ export function ManualCycleSheet() {
 			>
 				<SheetHeader className="border-[#2a2a2a] border-b pb-4 text-left">
 					<SheetTitle className="font-newsreader text-[#f5f5f2] text-xl">
-						Manual trade cycle
+						Manual run
 					</SheetTitle>
 					<SheetDescription className="font-manrope text-[#a38c85] text-sm">
-						Uses vault WETH balance. You control trade size + slippage; the
-						server still proposes BUY / SELL / HOLD and runs risk checks.
+						Ask your agent for a fresh recommendation. If Autopilot is on, the
+						agent may also execute the trade on-chain.
 					</SheetDescription>
 				</SheetHeader>
 
 				<div className="flex flex-col gap-6 px-4 py-6">
 					<div className="rounded-md border border-[#55433d] bg-[#131313] p-4">
 						<p className="font-manrope text-[#a38c85] text-[10px] uppercase tracking-[0.08em]">
-							Estimated input
+							Autopilot
+						</p>
+						<p className="mt-1 font-manrope text-[#f5f5f2] text-sm">
+							{vault?.autopilot ? "On — can execute" : "Off — suggestions only"}
+						</p>
+						<p className="mt-2 font-manrope text-[#a38c85] text-xs">
+							When Autopilot is off, this will never place a trade. You’ll just
+							get the agent’s analysis.
+						</p>
+					</div>
+
+					<div className="rounded-md border border-[#55433d] bg-[#131313] p-4">
+						<p className="font-manrope text-[#a38c85] text-[10px] uppercase tracking-[0.08em]">
+							Estimated trade size
 						</p>
 						<p className="mt-1 font-newsreader text-2xl text-[#f5f5f2]">
 							{balances.isLoading
@@ -155,9 +171,9 @@ export function ManualCycleSheet() {
 								: `${formatEther(estimatedAmountInWei)} WETH`}
 						</p>
 						<p className="mt-2 font-manrope text-[#a38c85] text-xs">
-							From vault WETH balance{" "}
-							{balances.isLoading ? "…" : `${formatEther(wethWeiBalance)} WETH`}{" "}
-							× trade size bps ÷ 10,000.
+							Based on your vault balance:{" "}
+							{balances.isLoading ? "…" : `${formatEther(wethWeiBalance)} WETH`}
+							.
 						</p>
 					</div>
 
@@ -166,7 +182,7 @@ export function ManualCycleSheet() {
 							className="font-manrope text-[#dbc1b9] text-xs"
 							htmlFor="tradeSizeBps"
 						>
-							Trade size (bps of WETH)
+							How much to use (percent)
 						</Label>
 						<Input
 							className="h-11 rounded-md border-[#55433d] bg-[#131313] font-manrope text-[#e2e2e2] text-sm"
@@ -179,7 +195,7 @@ export function ManualCycleSheet() {
 							value={tradeSizeBps}
 						/>
 						<p className="font-manrope text-[#a38c85] text-xs">
-							100 bps = 1% of vault WETH. Default matches agent profile.
+							100 bps = 1%. Start small while testing.
 						</p>
 					</div>
 
@@ -188,7 +204,7 @@ export function ManualCycleSheet() {
 							className="font-manrope text-[#dbc1b9] text-xs"
 							htmlFor="maxSlippageBps"
 						>
-							Max slippage (bps)
+							Price slippage limit (bps)
 						</Label>
 						<Input
 							className="h-11 rounded-md border-[#55433d] bg-[#131313] font-manrope text-[#e2e2e2] text-sm"
@@ -202,21 +218,20 @@ export function ManualCycleSheet() {
 						/>
 					</div>
 
-					<div className="flex items-center gap-3">
-						<input
-							checked={dryRun}
-							className="size-4 rounded border border-[#55433d] bg-[#131313] accent-[#d97757]"
-							id="dryRun"
-							onChange={(e) => setDryRun(e.target.checked)}
-							type="checkbox"
-						/>
-						<Label
-							className="cursor-pointer font-manrope text-[#dbc1b9] text-sm"
-							htmlFor="dryRun"
-						>
-							Dry run (simulate — no on-chain execution)
-						</Label>
-					</div>
+					{autopilotEnabled && (
+						<div className="flex items-center justify-between">
+							<Toggle
+								aria-label="Toggle preview-only mode"
+								className="border border-[#55433d] bg-[#131313] font-manrope text-[#dbc1b9] text-xs data-[state=on]:bg-[#2a2a2a]"
+								onPressedChange={setDryRun}
+								pressed={dryRun}
+								variant="outline"
+							>
+								<Circle className="mr-1 size-3 group-aria-pressed/toggle:fill-foreground" />
+								Paper Trade (No Execution)
+							</Toggle>
+						</div>
+					)}
 
 					<Button
 						className="h-11 rounded-md bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
@@ -228,7 +243,7 @@ export function ManualCycleSheet() {
 						onClick={submit}
 						type="button"
 					>
-						{runTradeCycle.isPending ? "Running…" : "Run cycle"}
+						{runTradeCycle.isPending ? "Thinking…" : "Get recommendation"}
 					</Button>
 
 					{(lastResult || lastError) && (
