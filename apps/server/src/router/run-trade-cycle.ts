@@ -2,6 +2,7 @@ import type { IntegrationServices, VaultConfig } from "@auto/api/context";
 import type {
 	CycleLogRecord,
 	KeeperExecutionResult,
+	RiskDecision,
 	runTradeCycleInputSchema,
 	runTradeCycleOutputSchema,
 } from "@auto/api/trade-types";
@@ -75,6 +76,40 @@ const requireTradeProposal = async ({
 			data: { reason: err.message },
 		});
 	}
+};
+
+/** Risk text stored on cycle logs and shown in the app (no dev/mock placeholders). */
+const buildUserFacingRiskDecision = (
+	proposal: CycleLogRecord["proposal"],
+	deterministicRisk: RiskDecision,
+	axlRisk: RiskDecision,
+	finalRisk: RiskDecision
+): RiskDecision => {
+	if (finalRisk.decision === "REJECT") {
+		return {
+			decision: "REJECT",
+			reason:
+				deterministicRisk.decision === "REJECT"
+					? deterministicRisk.reason
+					: axlRisk.reason,
+		};
+	}
+	if (proposal.action === "HOLD") {
+		return {
+			decision: "APPROVE",
+			reason: deterministicRisk.reason,
+		};
+	}
+	if (env.MOCK_RISK_AGENT) {
+		return {
+			decision: "APPROVE",
+			reason: deterministicRisk.reason,
+		};
+	}
+	return {
+		decision: "APPROVE",
+		reason: axlRisk.reason,
+	};
 };
 
 const resolveExecutionPlan = ({
@@ -246,6 +281,13 @@ export async function runTradeCycleInternal({
 				};
 	debugLog(cycleId, "final risk decision", riskDecision);
 
+	const logRiskDecision = buildUserFacingRiskDecision(
+		proposal,
+		deterministicRisk,
+		axlRisk,
+		riskDecision
+	);
+
 	let execution: KeeperExecutionResult | null = null;
 	let route: CycleLogRecord["route"] = null;
 
@@ -309,7 +351,7 @@ export async function runTradeCycleInternal({
 			maxSlippageBps: effectiveMaxSlippageBps,
 		},
 		proposal,
-		riskDecision,
+		riskDecision: logRiskDecision,
 		execution,
 		route,
 	});

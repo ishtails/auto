@@ -1,4 +1,7 @@
-import type { TradeProposal } from "@auto/api/trade-types";
+import type {
+	LlmTradingMemoryEntry,
+	TradeProposal,
+} from "@auto/api/trade-types";
 import { tradeProposalSchema } from "@auto/api/trade-types";
 import type { Schema } from "@google/genai";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -64,14 +67,40 @@ export class LlmAgent {
 		};
 	}
 
+	private formatTradingMemoryLine(
+		m: LlmTradingMemoryEntry,
+		index: number
+	): string {
+		const segments: string[] = [
+			`${index + 1}. [${m.timestamp}]`,
+			`mode=${m.mode}`,
+			`risk=${m.riskDecision}`,
+			`execution=${m.executionOutcome}`,
+			`txHash=${m.txHashPresent ? "yes" : "no"}`,
+		];
+		if (m.executionKeeperStatus) {
+			segments.push(`keeper=${m.executionKeeperStatus}`);
+		}
+		if (m.skipReason) {
+			segments.push(`skipReason=${m.skipReason}`);
+		}
+		segments.push(
+			`proposed: ${m.proposalAction} ${m.proposalTokenIn}→${m.proposalTokenOut} amountInWei=${m.proposalAmountInWei}`
+		);
+		if (m.routeAmountIn) {
+			segments.push(
+				`route: ${m.routeAmountIn} ${m.routeTokenIn ?? "?"}→${m.routeTokenOut ?? "?"}`
+			);
+		} else {
+			segments.push("route: none");
+		}
+		segments.push(`reasoning: ${m.reasoning}`);
+		return segments.join(" | ");
+	}
+
 	async generateProposal(
 		input: LlmStateInput,
-		memory?: {
-			action: string;
-			reasoning: string;
-			timestamp: string;
-			status: string;
-		}[],
+		memory?: LlmTradingMemoryEntry[],
 		marketContext?: string,
 		userSystemPrompt?: string,
 		allowlist?: Set<string>
@@ -97,13 +126,20 @@ export class LlmAgent {
 		if (memory && memory.length > 0) {
 			memoryContext = [
 				"",
-				"=== YOUR TRADING MEMORY (Last 5 Trades) ===",
-				...memory.map(
-					(m, i) =>
-						`${i + 1}. [${m.timestamp}] Action: ${m.action} | Status: ${m.status} | Reasoning: ${m.reasoning}`
-				),
+				"=== YOUR TRADING MEMORY (last cycles, newest first) ===",
+				...memory.map((m, i) => this.formatTradingMemoryLine(m, i)),
 				"",
-				"INSTRUCTIONS: Learn from your past trades. If your last trade failed due to slippage, be more conservative. If you just bought recently, consider holding. Use this history to make better decisions.",
+				"MEMORY FIELD MEANINGS:",
+				"- risk: risk gate only (APPROVE/REJECT). It is NOT proof a swap ran on-chain.",
+				"- execution=completed: a swap tx hash was recorded as successful.",
+				"- execution=failed: a swap was attempted and failed (e.g. revert).",
+				"- execution=skipped: no on-chain swap (HOLD, risk REJECT, suggest/dry-run mode, or no route/execution). See skipReason when present.",
+				"- mode=suggest: autopilot was off — recommendations only unless current run differs.",
+				"- mode=dryRun: paper / preview — no chain execution for that cycle.",
+				"- mode=live: autopilot path that may execute when proposal and risk allow.",
+				"- Trust PORTFOLIO balances over past BUY/SELL intent: a proposed BUY without execution=completed did not increase tokenOut on-chain.",
+				"",
+				"Use this history together with PORTFOLIO and MARKET CONTEXT; be more conservative after execution=failed or after repeated skipped BUYs.",
 				"=== END MEMORY ===",
 			].join("\n");
 		}

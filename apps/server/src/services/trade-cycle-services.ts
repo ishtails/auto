@@ -1,12 +1,19 @@
 import type { IntegrationServices } from "@auto/api/context";
-import type { RiskDecision, TradeProposal } from "@auto/api/trade-types";
+import type {
+	CycleLogRecord,
+	LlmTradingMemoryEntry,
+	RiskDecision,
+	TradeProposal,
+} from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
+import { base, baseSepolia } from "viem/chains";
 import {
 	BASE_MAINNET_CHAIN_ID,
 	buildTokenAllowlistPromptLines,
 	getDecimalsForTokenAddress,
 	getWhitelistedTradeAddresses,
 	TOKENS,
+	type TokenKey,
 } from "../config";
 import { db } from "../db";
 import { AxlTransport } from "../integrations/axl-transport";
@@ -18,6 +25,7 @@ import { OgLogger } from "../integrations/og-logger";
 import { evaluateRisk } from "../integrations/risk-gate";
 import { UniswapBuilder } from "../integrations/uniswap-builder";
 import { encodeVaultExecuteTrade } from "../integrations/vault-executor";
+import { rawCycleLogToLlmTradingMemory } from "./trading-memory";
 
 const chainIdToKeeperNetwork = (chainId: number): string => {
 	if (chainId === 8453) {
@@ -52,14 +60,7 @@ const extractVaultIdFromMemoryPointer = (
 
 const getRecentMemoryFromDb = async (
 	memoryPointer: string
-): Promise<
-	{
-		action: string;
-		reasoning: string;
-		timestamp: string;
-		status: string;
-	}[]
-> => {
+): Promise<LlmTradingMemoryEntry[]> => {
 	const vaultId = extractVaultIdFromMemoryPointer(memoryPointer);
 	if (!vaultId) {
 		return [];
@@ -71,20 +72,14 @@ const getRecentMemoryFromDb = async (
 		limit: 5,
 	});
 
-	return rows.map((row) => {
-		const record = row.record as {
-			proposal?: { action?: string; reasoning?: string };
-			riskDecision?: { decision?: string };
-			timestamp?: string;
-		};
-
-		return {
-			action: record.proposal?.action ?? "UNKNOWN",
-			reasoning: record.proposal?.reasoning ?? "",
-			timestamp: record.timestamp ?? row.occurredAt.toISOString(),
-			status: record.riskDecision?.decision ?? row.decision,
-		};
-	});
+	const out: LlmTradingMemoryEntry[] = [];
+	for (const row of rows) {
+		const entry = rawCycleLogToLlmTradingMemory(row.record);
+		if (entry) {
+			out.push(entry);
+		}
+	}
+	return out;
 };
 
 const buildDexScreenerPromptContext = (
@@ -121,6 +116,40 @@ const buildDexScreenerPromptContext = (
 };
 
 const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
+
+const resolveUniswapTradeApiConfig = ():
+	| {
+			apiKey: string;
+			baseUrl: string;
+			permit2Disabled: boolean;
+			universalRouterVersion: string;
+	  }
+	| undefined => {
+	if (!env.UNISWAP_TRADE_API_KEY) {
+		return;
+	}
+	const onMainnet = env.CHAIN_ID === base.id;
+	const onSepoliaWithOptIn =
+		env.CHAIN_ID === baseSepolia.id && env.UNISWAP_TRADE_API_ON_SEPOLIA;
+	if (!(onMainnet || onSepoliaWithOptIn)) {
+		if (
+			env.CHAIN_ID === baseSepolia.id &&
+			isDebugEnabled() &&
+			env.UNISWAP_TRADE_API_KEY
+		) {
+			console.log(
+				"[Uniswap] UNISWAP_TRADE_API_KEY is set but UNISWAP_TRADE_API_ON_SEPOLIA is false — using configured Sepolia V3 / SwapRouter02 calldata (not Universal Router)"
+			);
+		}
+		return;
+	}
+	return {
+		apiKey: env.UNISWAP_TRADE_API_KEY,
+		baseUrl: env.UNISWAP_TRADE_API_URL,
+		permit2Disabled: env.UNISWAP_API_PERMIT2_DISABLED,
+		universalRouterVersion: env.UNISWAP_UNIVERSAL_ROUTER_VERSION,
+	};
+};
 
 export const createIntegrationServices = (): IntegrationServices => {
 	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
@@ -178,11 +207,32 @@ export const createIntegrationServices = (): IntegrationServices => {
 				vaultConfig.vaultAddress
 			);
 
-			const [wethWei, usdcWei] = await Promise.all([
-				chainStateDynamic.getVaultBalance(vaultConfig.tokenIn),
-				chainStateDynamic.getVaultBalance(vaultConfig.tokenOut),
-			]);
-			return { wethWei, usdcWei };
+			const tokenEntries = Object.entries(TOKENS) as [
+				TokenKey,
+				(typeof TOKENS)[TokenKey],
+			][];
+			const tokens = await Promise.all(
+				tokenEntries.map(async ([key, t]) => ({
+					address: t.address,
+					decimals: t.decimals,
+					isHub: key === "WETH",
+					key,
+					symbol: t.symbol,
+					wei: await chainStateDynamic.getVaultBalance(t.address),
+				}))
+			);
+
+			const wethWei =
+				tokens.find((row) => row.key === "WETH")?.wei ?? BigInt(0);
+			const usdcWei =
+				tokens.find((row) => row.key === "USDC")?.wei ?? BigInt(0);
+
+			return {
+				hubTokenKey: "WETH",
+				tokens,
+				usdcWei,
+				wethWei,
+			};
 		},
 		generateProposal: async (state, vaultConfig) => {
 			const streamId = vaultConfig.memoryPointer;
@@ -204,17 +254,19 @@ export const createIntegrationServices = (): IntegrationServices => {
 					? memoryFromDb
 					: await Promise.race([
 							dynamicLogger.readRecentLogs(5).catch(() => []),
-							new Promise<[]>((resolve) =>
+							new Promise<CycleLogRecord[]>((resolve) =>
 								setTimeout(() => resolve([]), MEMORY_READ_TIMEOUT_MS)
 							),
-						]).then((recentLogs) =>
-							recentLogs.map((log) => ({
-								action: log.proposal.action,
-								reasoning: log.proposal.reasoning,
-								timestamp: log.timestamp,
-								status: log.riskDecision.decision,
-							}))
-						);
+						]).then((recentLogs) => {
+							const mapped: LlmTradingMemoryEntry[] = [];
+							for (const log of recentLogs) {
+								const entry = rawCycleLogToLlmTradingMemory(log);
+								if (entry) {
+									mapped.push(entry);
+								}
+							}
+							return mapped;
+						});
 
 			const wethMain = TOKENS.WETH.BASE_MAINNET_ADDRESS;
 			const sections: string[] = [
@@ -243,6 +295,10 @@ export const createIntegrationServices = (): IntegrationServices => {
 				console.log("[DexScreener] batched mainnet reference context", {
 					chars: marketContext.length,
 				});
+				console.log(
+					"[DexScreener] LLM marketContext (verbatim sent to model):\n",
+					marketContext
+				);
 			}
 
 			const portfolioSummary = Object.entries(TOKENS)
@@ -294,14 +350,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 				recipientAddress: vaultConfig.vaultAddress,
 				routerAddress: env.UNISWAP_ROUTER_ADDRESS,
 				rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
-				tradeApi: env.UNISWAP_TRADE_API_KEY
-					? {
-							apiKey: env.UNISWAP_TRADE_API_KEY,
-							baseUrl: env.UNISWAP_TRADE_API_URL,
-							permit2Disabled: env.UNISWAP_API_PERMIT2_DISABLED,
-							universalRouterVersion: env.UNISWAP_UNIVERSAL_ROUTER_VERSION,
-						}
-					: undefined,
+				tradeApi: resolveUniswapTradeApiConfig(),
 			});
 			return dynamicUniswap.buildRoute(proposal, maxSlippageBps, {
 				tokenInDecimals: getDecimalsForTokenAddress(proposal.tokenIn),

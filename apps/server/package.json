@@ -29,7 +29,6 @@
     "@orpc/zod": "catalog:",
     "@privy-io/node": "^0.16.0",
     "@uniswap/sdk-core": "^7.7.2",
-    "@uniswap/v3-sdk": "^3.27.0",
     "bunqueue": "^2.8.0",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.2",
