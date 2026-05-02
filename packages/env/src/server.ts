@@ -23,8 +23,16 @@ export const env = createEnv({
 		CHAIN_RPC_URL: z.url(),
 		ROUTER_RPC_URL: z.url().optional(),
 		UNISWAP_ROUTER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-		/** Uniswap Developer Platform (mainnet); Base Sepolia uses local pool routing without this. */
+		/** Uniswap Developer Platform. On Base mainnet, routes via Universal Router when set. */
 		UNISWAP_TRADE_API_KEY: z.string().min(1).optional(),
+		/**
+		 * When true on Base Sepolia (84532), use the Trading API (Universal Router calldata).
+		 * Leave false when `UNISWAP_ROUTER_ADDRESS` is SwapRouter02 — the API targets Universal Router.
+		 */
+		UNISWAP_TRADE_API_ON_SEPOLIA: z
+			.enum(["true", "false"])
+			.default("false")
+			.transform((v) => v === "true"),
 		UNISWAP_TRADE_API_URL: z
 			.string()
 			.url()
