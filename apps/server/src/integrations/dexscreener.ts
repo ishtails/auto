@@ -12,9 +12,19 @@ interface DexPair {
 	volume?: Record<string, number>;
 }
 
-interface TokenPairsResponse {
-	pairs?: DexPair[];
-}
+/** DexScreener returns a raw pair array for GET /token-pairs/v1/... (not `{ pairs }`). */
+type TokenPairsApiPayload = DexPair[] | { pairs?: DexPair[] };
+
+const normalizeTokenPairsPayload = (data: unknown): DexPair[] => {
+	if (Array.isArray(data)) {
+		return data as DexPair[];
+	}
+	if (data && typeof data === "object" && "pairs" in data) {
+		const pairs = (data as { pairs?: DexPair[] }).pairs;
+		return pairs ?? [];
+	}
+	return [];
+};
 
 export interface DexScreenerMarketContext {
 	buySellRatio1h: number | null;
@@ -168,8 +178,42 @@ async function fetchPairsForToken({
 	tokenAddress: string;
 }): Promise<DexPair[]> {
 	const url = `${DEX_SCREENER_BASE_URL}/token-pairs/v1/${encodeURIComponent(chain)}/${encodeURIComponent(tokenAddress)}`;
-	const data = await fetchJsonWithTimeout<TokenPairsResponse>(url, 1500);
-	return data.pairs ?? [];
+	const data = await fetchJsonWithTimeout<TokenPairsApiPayload>(url, 1500);
+	return normalizeTokenPairsPayload(data);
+}
+
+/** DexScreener caps lists per token; direct WETH↔alt may exist only on the alt's pair list. */
+const dedupePairsByAddress = (pairs: DexPair[]): DexPair[] => {
+	const seen = new Set<string>();
+	const out: DexPair[] = [];
+	for (const p of pairs) {
+		const addr = p.pairAddress?.toLowerCase();
+		if (!addr || seen.has(addr)) {
+			continue;
+		}
+		seen.add(addr);
+		out.push(p);
+	}
+	return out;
+};
+
+async function fetchPairsForEitherToken({
+	chain,
+	tokenIn,
+	tokenOut,
+}: {
+	chain: string;
+	tokenIn: string;
+	tokenOut: string;
+}): Promise<DexPair[]> {
+	if (tokenOut.toLowerCase() === tokenIn.toLowerCase()) {
+		return fetchPairsForToken({ chain, tokenAddress: tokenIn });
+	}
+	const [fromIn, fromOut] = await Promise.all([
+		fetchPairsForToken({ chain, tokenAddress: tokenIn }),
+		fetchPairsForToken({ chain, tokenAddress: tokenOut }),
+	]);
+	return dedupePairsByAddress([...fromIn, ...fromOut]);
 }
 
 function buildMarketContextFromPair({
@@ -239,7 +283,11 @@ async function fetchFirstAvailableMarketContext({
 					tokenOut,
 				});
 			}
-			const pairs = await fetchPairsForToken({ chain, tokenAddress: tokenIn });
+			const pairs = await fetchPairsForEitherToken({
+				chain,
+				tokenIn,
+				tokenOut,
+			});
 			const best = pickBestMatchingPair({ pairs, tokenIn, tokenOut });
 			if (!best) {
 				if (isDebugEnabled()) {
