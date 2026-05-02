@@ -17,16 +17,6 @@ export const TOKENS = {
 			feeTier: 3000,
 		},
 	},
-	MEDIA: {
-		symbol: "MEDIA",
-		address: "0xc7f3ec6e0259ce1e2beabac42e2f0478ca8d74e1",
-		decimals: 18,
-		BASE_MAINNET_ADDRESS: "0x6E51B3a19F114013E5Dc09D0477a536c7E4e0207",
-		BASE_SEPOLIA_POOL: {
-			address: "0xb37e6617c69c18ed1f6b2a9cd728da74d66e9490",
-			feeTier: 500,
-		},
-	},
 	RISE: {
 		symbol: "RISE",
 		address: "0x8c640a745a3e00e9aac62eb9d90885844f070a01",
