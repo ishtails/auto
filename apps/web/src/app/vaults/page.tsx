@@ -10,6 +10,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Plus, ShieldCheck, Wallet } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { orpc } from "@/utils/orpc";
 
@@ -85,7 +86,7 @@ export default function VaultsPage() {
 
 					{!listVaults.isLoading &&
 						listVaults.data?.map((vault) => (
-							<Link href={`/vaults/${vault.id}`} key={vault.id}>
+							<Link href={`/vaults/${vault.id}` as Route} key={vault.id}>
 								<Card className="group cursor-pointer border border-[#55433d] bg-[#1b1b1b] transition-all hover:border-[#ffb59e]/50 hover:bg-[#1f1f1f]">
 									<CardHeader className="pb-3">
 										<div className="flex items-center justify-between">

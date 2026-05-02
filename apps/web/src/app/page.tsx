@@ -35,12 +35,12 @@ export default function Home() {
 						{authenticated ? (
 							<>
 								<Link href="/vaults">
-									<Button className="h-11 min-w-[10rem] rounded-md bg-[#d97757] px-6 font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]">
-										My vaults
+									<Button className="h-11 min-w-40 rounded-md bg-[#d97757] px-6 font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]">
+										My Agents
 									</Button>
 								</Link>
 								<Button
-									className="h-11 min-w-[10rem] rounded-md border border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+									className="h-11 min-w-40 rounded-md border border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
 									onClick={logout}
 									variant="outline"
 								>
@@ -49,7 +49,7 @@ export default function Home() {
 							</>
 						) : (
 							<Button
-								className="h-11 min-w-[12rem] rounded-md bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
+								className="h-11 min-w-48 rounded-md bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
 								onClick={login}
 							>
 								Log in

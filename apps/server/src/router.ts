@@ -1,5 +1,5 @@
 import { authedProcedure, publicProcedure } from "@auto/api";
-import type { VaultConfig } from "@auto/api/context";
+import type { IntegrationServices, VaultConfig } from "@auto/api/context";
 import {
 	type CycleLogRecord,
 	type KeeperExecutionResult,
@@ -21,6 +21,7 @@ import { env } from "@auto/env/server";
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
 import { createPublicClient, hashTypedData, http, isAddress } from "viem";
+import type { z } from "zod";
 import { getUserWalletAddress } from "./auth/middleware";
 import { db } from "./db";
 import { agentProfiles, users, vaultDeployments, vaults } from "./db/schema";
@@ -43,6 +44,42 @@ const requireString = (value: string | undefined, label: string): string => {
 		throw new ORPCError("BAD_REQUEST", { message: `${label} is required` });
 	}
 	return value;
+};
+
+const truncateText = (value: string, maxLen: number): string =>
+	value.length > maxLen ? `${value.slice(0, Math.max(0, maxLen - 1))}…` : value;
+
+const sanitizeCycleLogRecord = (record: CycleLogRecord): CycleLogRecord => {
+	const MAX_REASONING = 2000;
+	const MAX_REASON = 2000;
+
+	return {
+		...record,
+		proposal: {
+			...record.proposal,
+			reasoning: truncateText(record.proposal.reasoning, MAX_REASONING),
+		},
+		riskDecision: {
+			...record.riskDecision,
+			reason: truncateText(record.riskDecision.reason, MAX_REASON),
+		},
+	};
+};
+
+// DO NOT REMOVE: This debug logger is intentionally always available behind
+// `DEBUG=true` for investigating prod/testnet issues.
+const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
+
+const debugLog = (cycleId: string, message: string, data?: unknown) => {
+	if (!isDebugEnabled()) {
+		return;
+	}
+	const prefix = `[runTradeCycle:${cycleId}]`;
+	if (data) {
+		console.log(prefix, message, data);
+		return;
+	}
+	console.log(prefix, message);
 };
 
 export async function getOwnedActiveVault(
@@ -84,6 +121,200 @@ export async function getOwnedActiveVault(
 
 	const vaultAddress = vault.vaultAddress as `0x${string}`;
 	return { vaultAddress, profile };
+}
+
+async function runTradeCycleInternal({
+	context,
+	input,
+	cycleId,
+	startedAt,
+}: {
+	context: {
+		auth: { type: "user"; privyUserId: string };
+		services: IntegrationServices;
+	};
+	input: z.infer<typeof runTradeCycleInputSchema>;
+	cycleId: string;
+	startedAt: number;
+}): Promise<z.infer<typeof runTradeCycleOutputSchema>> {
+	let amountInInput = input.amountIn;
+	let maxSlippageBps = input.maxSlippageBps;
+
+	debugLog(cycleId, "start", {
+		vaultId: input.vaultId,
+		dryRun: input.dryRun,
+		hasAmountIn: Boolean(input.amountIn),
+		maxSlippageBps: input.maxSlippageBps ?? null,
+	});
+
+	const { vaultAddress, profile } = await getOwnedActiveVault(
+		context.auth.privyUserId,
+		input.vaultId
+	);
+	debugLog(cycleId, "resolved vault", {
+		vaultAddress,
+		tokenIn: profile.tokenIn,
+		tokenOut: profile.tokenOut,
+		maxTradeBps: profile.maxTradeBps,
+		defaultMaxSlippageBps: profile.maxSlippageBps,
+		memoryPointer: profile.memoryPointer,
+	});
+
+	const vaultConfig: VaultConfig = {
+		vaultAddress,
+		tokenIn: profile.tokenIn,
+		tokenOut: profile.tokenOut,
+		geminiSystemPrompt: profile.geminiSystemPrompt,
+		memoryPointer: profile.memoryPointer,
+	};
+
+	if (maxSlippageBps === undefined) {
+		maxSlippageBps = profile.maxSlippageBps;
+	}
+	if (!amountInInput) {
+		const chainState = new ChainStateClient(env.CHAIN_RPC_URL, vaultAddress);
+		const balanceWei = await chainState.getVaultBalance(profile.tokenIn);
+		const derived = deriveAmountInWei(balanceWei, profile.maxTradeBps);
+		debugLog(cycleId, "derived amountIn", {
+			balanceWei: balanceWei.toString(),
+			derivedWei: derived.toString(),
+		});
+		if (derived <= 0n) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Vault has no available balance to trade",
+			});
+		}
+		amountInInput = derived.toString();
+	}
+
+	const effectiveAmountIn = requireString(amountInInput, "amountIn");
+	const effectiveMaxSlippageBps = requireNumber(
+		maxSlippageBps,
+		"maxSlippageBps"
+	);
+	debugLog(cycleId, "effective params", {
+		amountInWei: effectiveAmountIn,
+		maxSlippageBps: effectiveMaxSlippageBps,
+	});
+
+	const amountIn = BigInt(effectiveAmountIn);
+	const state = await context.services.getState(
+		{ amountIn, tokenIn: "WETH", tokenOut: "USDC" },
+		vaultConfig
+	);
+	debugLog(cycleId, "state loaded", {
+		vaultBalanceWei: state.vaultBalanceWei.toString(),
+		requestedAmountInWei: state.requestedAmountInWei.toString(),
+	});
+
+	const proposal = await context.services.generateProposal(state, vaultConfig);
+	debugLog(cycleId, "proposal", {
+		action: proposal.action,
+		tokenIn: proposal.tokenIn,
+		tokenOut: proposal.tokenOut,
+		amountInWei: proposal.amountInWei,
+	});
+
+	const deterministicRisk = await context.services.evaluateRisk(
+		proposal,
+		state,
+		vaultConfig
+	);
+	debugLog(cycleId, "deterministic risk", deterministicRisk);
+	const axlRisk = await context.services.sendToRiskAgent(proposal);
+	debugLog(cycleId, "axl risk", axlRisk);
+
+	const riskDecision =
+		deterministicRisk.decision === "APPROVE" && axlRisk.decision === "APPROVE"
+			? axlRisk
+			: {
+					decision: "REJECT" as const,
+					reason: `deterministic=${deterministicRisk.decision}:${deterministicRisk.reason};axl=${axlRisk.decision}:${axlRisk.reason}`,
+				};
+	debugLog(cycleId, "final risk decision", riskDecision);
+
+	let execution: KeeperExecutionResult | null = null;
+	let route: CycleLogRecord["route"] = null;
+
+	if (!input.dryRun && riskDecision.decision === "APPROVE") {
+		const routeResult = await context.services.buildRoute(
+			proposal,
+			effectiveMaxSlippageBps,
+			vaultConfig
+		);
+		debugLog(cycleId, "route built", {
+			target: routeResult.target,
+			amountIn: routeResult.amountIn.toString(),
+			amountOutMinimum: routeResult.amountOutMinimum.toString(),
+			quoteOut: routeResult.quoteOut.toString(),
+			tokenIn: routeResult.tokenIn,
+			tokenOut: routeResult.tokenOut,
+		});
+
+		route = {
+			target: routeResult.target,
+			tokenIn: routeResult.tokenIn,
+			tokenOut: proposal.tokenOut,
+			amountIn: routeResult.amountIn.toString(),
+			amountOutMinimum: routeResult.amountOutMinimum.toString(),
+			quoteOut: routeResult.quoteOut.toString(),
+		};
+
+		execution = await context.services.executeVaultTrade({
+			route: routeResult,
+			tokenOut: proposal.tokenOut,
+			vaultConfig,
+		});
+		debugLog(cycleId, "execution result", execution);
+
+		if (execution.status !== "completed" || !execution.txHash) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: execution.error ?? "Execution did not return a tx hash",
+				data: { executionId: execution.executionId, status: execution.status },
+			});
+		}
+	}
+
+	const logPointer = await context.services.logCycle(
+		sanitizeCycleLogRecord({
+			cycleId,
+			timestamp: new Date().toISOString(),
+			input: {
+				...input,
+				amountIn: effectiveAmountIn,
+				maxSlippageBps: effectiveMaxSlippageBps,
+			},
+			proposal,
+			riskDecision,
+			execution,
+			route,
+		}),
+		vaultConfig
+	);
+	debugLog(cycleId, "cycle logged", { logPointer });
+
+	let displayReason: string | null = null;
+	if (riskDecision.decision === "REJECT") {
+		displayReason =
+			deterministicRisk.decision === "REJECT"
+				? deterministicRisk.reason
+				: axlRisk.reason;
+	}
+
+	debugLog(cycleId, "success", {
+		ms: Date.now() - startedAt,
+		decision: riskDecision.decision,
+		txHash: execution?.txHash ?? null,
+	});
+
+	return {
+		cycleId,
+		decision: riskDecision.decision,
+		reason: displayReason,
+		executionId: execution?.executionId ?? null,
+		txHash: execution?.txHash ?? null,
+		logPointer,
+	};
 }
 
 // Server-side router implementation with full DB access
@@ -178,6 +409,7 @@ export const appRouter = {
 		.input(runTradeCycleInputSchema)
 		.output(runTradeCycleOutputSchema)
 		.handler(async ({ context, input }) => {
+			const startedAt = Date.now();
 			if (context.auth.type !== "user") {
 				throw new ORPCError("UNAUTHORIZED", {
 					message: "Vault execution requires user auth",
@@ -185,136 +417,21 @@ export const appRouter = {
 			}
 
 			const cycleId = crypto.randomUUID();
-			let amountInInput = input.amountIn;
-			let maxSlippageBps = input.maxSlippageBps;
-
-			const { vaultAddress, profile } = await getOwnedActiveVault(
-				context.auth.privyUserId,
-				input.vaultId
-			);
-
-			const vaultConfig: VaultConfig = {
-				vaultAddress,
-				tokenIn: profile.tokenIn,
-				tokenOut: profile.tokenOut,
-				geminiSystemPrompt: profile.geminiSystemPrompt,
-				memoryPointer: profile.memoryPointer,
-			};
-
-			if (maxSlippageBps === undefined) {
-				maxSlippageBps = profile.maxSlippageBps;
-			}
-			if (!amountInInput) {
-				const chainState = new ChainStateClient(
-					env.CHAIN_RPC_URL,
-					vaultAddress
-				);
-				const balanceWei = await chainState.getVaultBalance(profile.tokenIn);
-				const derived = deriveAmountInWei(balanceWei, profile.maxTradeBps);
-				if (derived <= 0n) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: "Vault has no available balance to trade",
-					});
-				}
-				amountInInput = derived.toString();
-			}
-
-			const effectiveAmountIn = requireString(amountInInput, "amountIn");
-			const effectiveMaxSlippageBps = requireNumber(
-				maxSlippageBps,
-				"maxSlippageBps"
-			);
-
-			const amountIn = BigInt(effectiveAmountIn);
-
-			const state = await context.services.getState(
-				{
-					amountIn,
-					tokenIn: "WETH",
-					tokenOut: "USDC",
-				},
-				vaultConfig
-			);
-
-			const proposal = await context.services.generateProposal(
-				state,
-				vaultConfig
-			);
-			const deterministicRisk = await context.services.evaluateRisk(
-				proposal,
-				state,
-				vaultConfig
-			);
-			const axlRisk = await context.services.sendToRiskAgent(proposal);
-
-			const riskDecision =
-				deterministicRisk.decision === "APPROVE" &&
-				axlRisk.decision === "APPROVE"
-					? axlRisk
-					: {
-							decision: "REJECT" as const,
-							reason: `deterministic=${deterministicRisk.decision}:${deterministicRisk.reason};axl=${axlRisk.decision}:${axlRisk.reason}`,
-						};
-
-			let execution: KeeperExecutionResult | null = null;
-			let route: CycleLogRecord["route"] = null;
-
-			if (!input.dryRun && riskDecision.decision === "APPROVE") {
-				const routeResult = await context.services.buildRoute(
-					proposal,
-					effectiveMaxSlippageBps,
-					vaultConfig
-				);
-
-				route = {
-					target: routeResult.target,
-					tokenIn: routeResult.tokenIn,
-					tokenOut: proposal.tokenOut,
-					amountIn: routeResult.amountIn.toString(),
-					amountOutMinimum: routeResult.amountOutMinimum.toString(),
-					quoteOut: routeResult.quoteOut.toString(),
-				};
-
-				execution = await context.services.executeVaultTrade({
-					route: routeResult,
-					tokenOut: proposal.tokenOut,
-					vaultConfig,
-				});
-			}
-
-			const logPointer = await context.services.logCycle(
-				{
+			try {
+				return await runTradeCycleInternal({
+					context: { auth: context.auth, services: context.services },
+					input,
 					cycleId,
-					timestamp: new Date().toISOString(),
-					input: {
-						...input,
-						amountIn: effectiveAmountIn,
-						maxSlippageBps: effectiveMaxSlippageBps,
-					},
-					proposal,
-					riskDecision,
-					execution,
-					route,
-				},
-				vaultConfig
-			);
-
-			let displayReason: string | null = null;
-			if (riskDecision.decision === "REJECT") {
-				displayReason =
-					deterministicRisk.decision === "REJECT"
-						? deterministicRisk.reason
-						: axlRisk.reason;
+					startedAt,
+				});
+			} catch (error: unknown) {
+				const err = error instanceof Error ? error : new Error(String(error));
+				debugLog(cycleId, "error", {
+					ms: Date.now() - startedAt,
+					message: err.message,
+				});
+				throw error;
 			}
-
-			return {
-				cycleId,
-				decision: riskDecision.decision,
-				reason: displayReason,
-				executionId: execution?.executionId ?? null,
-				txHash: execution?.txHash ?? null,
-				logPointer,
-			};
 		}),
 
 	// ─── Vault Procedures with DB Implementation ───────────────────────

@@ -66,7 +66,9 @@ export class KeeperHubClient {
 	async pollExecutionStatus(
 		executionId: string
 	): Promise<KeeperExecutionResult> {
-		for (let attempt = 0; attempt < 20; attempt++) {
+		// We want to return a tx hash when possible, because the UI expects a
+		// linkable transaction for "live" (non-dry-run) executions.
+		for (let attempt = 0; attempt < 60; attempt++) {
 			const response = await fetch(
 				`${this.baseUrl}/api/execute/${executionId}/status`,
 				{
@@ -85,11 +87,20 @@ export class KeeperHubClient {
 
 			const payload = (await response.json()) as StatusResponse;
 			const status = payload.status?.toLowerCase();
-			if (status === "completed" || status === "failed") {
+			const txHash = payload.transactionHash ?? null;
+			if (status === "failed") {
 				return {
 					executionId,
-					status: status as "completed" | "failed",
-					txHash: payload.transactionHash ?? null,
+					status: "failed",
+					txHash,
+					error: payload.error ?? null,
+				};
+			}
+			if (status === "completed" && txHash) {
+				return {
+					executionId,
+					status: "completed",
+					txHash,
 					error: payload.error ?? null,
 				};
 			}
@@ -101,7 +112,7 @@ export class KeeperHubClient {
 			executionId,
 			status: "failed",
 			txHash: null,
-			error: "keeperhub polling timeout",
+			error: "keeperhub polling timeout (tx hash unavailable)",
 		};
 	}
 }
