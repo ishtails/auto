@@ -1,6 +1,5 @@
 import type { RouteBuildResult, TradeProposal } from "@auto/api/trade-types";
 import { CurrencyAmount, Token } from "@uniswap/sdk-core";
-import { Pool } from "@uniswap/v3-sdk";
 import {
 	type Address,
 	createPublicClient,
@@ -19,32 +18,43 @@ import {
 	type UniswapTradeApiConfig,
 } from "./uniswap-trade-api";
 
-const V3_POOL_ABI = [
+/** Base Sepolia — Uniswap v3 QuoterV2 (Base docs ecosystem contracts). */
+const QUOTER_V2_BASE_SEPOLIA: Address =
+	"0xC5290058841028F1614F3A6F0F5816cAd0df5E27";
+
+const QUOTER_V2_ABI = [
 	{
-		inputs: [],
-		name: "liquidity",
-		outputs: [{ name: "", type: "uint128" }],
-		stateMutability: "view",
-		type: "function",
-	},
-	{
-		inputs: [],
-		name: "slot0",
-		outputs: [
-			{ name: "sqrtPriceX96", type: "uint160" },
-			{ name: "tick", type: "int24" },
-			{ name: "observationIndex", type: "uint16" },
-			{ name: "observationCardinality", type: "uint16" },
-			{ name: "observationCardinalityNext", type: "uint16" },
-			{ name: "feeProtocol", type: "uint8" },
-			{ name: "unlocked", type: "bool" },
+		inputs: [
+			{
+				components: [
+					{ name: "tokenIn", type: "address" },
+					{ name: "tokenOut", type: "address" },
+					{ name: "amountIn", type: "uint256" },
+					{ name: "fee", type: "uint24" },
+					{ name: "sqrtPriceLimitX96", type: "uint160" },
+				],
+				name: "params",
+				type: "tuple",
+			},
 		],
-		stateMutability: "view",
+		name: "quoteExactInputSingle",
+		outputs: [
+			{ name: "amountOut", type: "uint256" },
+			{ name: "sqrtPriceX96After", type: "uint160" },
+			{ name: "initializedTicksCrossed", type: "uint32" },
+			{ name: "gasEstimate", type: "uint256" },
+		],
+		stateMutability: "nonpayable",
 		type: "function",
 	},
 ] as const;
 
-const SWAP_ROUTER_ABI = [
+/**
+ * SwapRouter02 implements `IV3SwapRouter` — not the legacy v3-periphery `SwapRouter`.
+ * Per https://github.com/Uniswap/swap-router-contracts/blob/main/contracts/interfaces/IV3SwapRouter.sol
+ * `exactInputSingle` / `exactInput` tuples have **no** `deadline` (deadline was removed in this router).
+ */
+const SWAP_ROUTER02_ABI = [
 	{
 		inputs: [
 			{
@@ -53,7 +63,6 @@ const SWAP_ROUTER_ABI = [
 					{ name: "tokenOut", type: "address" },
 					{ name: "fee", type: "uint24" },
 					{ name: "recipient", type: "address" },
-					{ name: "deadline", type: "uint256" },
 					{ name: "amountIn", type: "uint256" },
 					{ name: "amountOutMinimum", type: "uint256" },
 					{ name: "sqrtPriceLimitX96", type: "uint160" },
@@ -73,7 +82,6 @@ const SWAP_ROUTER_ABI = [
 				components: [
 					{ name: "path", type: "bytes" },
 					{ name: "recipient", type: "address" },
-					{ name: "deadline", type: "uint256" },
 					{ name: "amountIn", type: "uint256" },
 					{ name: "amountOutMinimum", type: "uint256" },
 				],
@@ -135,70 +143,51 @@ const encodeV3Path = (tokenPath: Address[], fees: number[]): `0x${string}` => {
 	return `0x${hex}`;
 };
 
-async function loadV3Pool(
-	publicClient: SepoliaPublicClient,
-	poolAddress: Address,
-	tokenA: Token,
-	tokenB: Token,
-	fee: number
-): Promise<Pool> {
-	const slot0 = await publicClient.readContract({
-		abi: V3_POOL_ABI,
-		address: poolAddress,
-		functionName: "slot0",
-	});
-	const liquidity = await publicClient.readContract({
-		abi: V3_POOL_ABI,
-		address: poolAddress,
-		functionName: "liquidity",
-	});
-
-	const tick = slot0[1];
-	return new Pool(
-		tokenA,
-		tokenB,
-		fee,
-		slot0[0].toString(),
-		liquidity.toString(),
-		typeof tick === "bigint" ? Number(tick) : tick
-	);
-}
-
-/** v3-sdk typings may expose sync or async getOutputAmount depending on version. */
-const resolvePoolOutput = (
-	pool: Pool,
-	input: CurrencyAmount<Token>
-): Promise<[CurrencyAmount<Token>, Pool]> =>
-	Promise.resolve(pool.getOutputAmount(input)) as Promise<
-		[CurrencyAmount<Token>, Pool]
-	>;
-
 const wrapQuoteError = (label: string, cause: unknown): never => {
 	const message = cause instanceof Error ? cause.message : String(cause);
-	throw new Error(`V3 pool quote failed (${label}): ${message}`);
+	throw new Error(`V3 quote failed (${label}): ${message}`);
 };
+
+async function quoteExactInputSingleQuoter(
+	publicClient: SepoliaPublicClient,
+	tokenIn: Address,
+	tokenOut: Address,
+	fee: number,
+	amountIn: bigint
+): Promise<bigint> {
+	const result = await publicClient.readContract({
+		abi: QUOTER_V2_ABI,
+		address: QUOTER_V2_BASE_SEPOLIA,
+		args: [
+			{
+				amountIn,
+				fee,
+				sqrtPriceLimitX96: 0n,
+				tokenIn,
+				tokenOut,
+			},
+		],
+		functionName: "quoteExactInputSingle",
+	});
+	return result[0];
+}
 
 async function quoteSingleHop(
 	publicClient: SepoliaPublicClient,
-	poolAddress: Address,
 	fee: number,
 	tokenInSdk: Token,
 	tokenOutSdk: Token,
 	amountIn: bigint
 ): Promise<CurrencyAmount<Token>> {
-	const pool = await loadV3Pool(
-		publicClient,
-		poolAddress,
-		tokenInSdk,
-		tokenOutSdk,
-		fee
-	);
 	try {
-		const [out] = await resolvePoolOutput(
-			pool,
-			CurrencyAmount.fromRawAmount(tokenInSdk, amountIn.toString())
+		const amountOut = await quoteExactInputSingleQuoter(
+			publicClient,
+			tokenInSdk.address as Address,
+			tokenOutSdk.address as Address,
+			fee,
+			amountIn
 		);
-		return out;
+		return CurrencyAmount.fromRawAmount(tokenOutSdk, amountOut.toString());
 	} catch (cause) {
 		return wrapQuoteError("single-hop", cause);
 	}
@@ -212,63 +201,50 @@ async function quoteTwoHopViaWeth(
 	tokenOutSdk: Token,
 	amountIn: bigint
 ): Promise<CurrencyAmount<Token>> {
-	const pool1 = await loadV3Pool(
-		publicClient,
-		route.firstPool,
-		tokenInSdk,
-		wethSdk,
-		route.firstFee
-	);
-	let wethMid: CurrencyAmount<Token>;
+	let wethMidWei: bigint;
 	try {
-		const mid = await resolvePoolOutput(
-			pool1,
-			CurrencyAmount.fromRawAmount(tokenInSdk, amountIn.toString())
+		wethMidWei = await quoteExactInputSingleQuoter(
+			publicClient,
+			tokenInSdk.address as Address,
+			wethSdk.address as Address,
+			route.firstFee,
+			amountIn
 		);
-		wethMid = mid[0];
 	} catch (cause) {
 		return wrapQuoteError("first hop", cause);
 	}
 
-	const pool2 = await loadV3Pool(
-		publicClient,
-		route.secondPool,
-		wethSdk,
-		tokenOutSdk,
-		route.secondFee
-	);
+	let outWei: bigint;
 	try {
-		const [out] = await resolvePoolOutput(pool2, wethMid);
-		return out;
+		outWei = await quoteExactInputSingleQuoter(
+			publicClient,
+			wethSdk.address as Address,
+			tokenOutSdk.address as Address,
+			route.secondFee,
+			wethMidWei
+		);
 	} catch (cause) {
 		return wrapQuoteError("second hop", cause);
 	}
+
+	return CurrencyAmount.fromRawAmount(tokenOutSdk, outWei.toString());
 }
 
-function encodeSwapRouterCalldata(params: {
+function encodeSwapRouter02Calldata(params: {
 	amountIn: bigint;
 	amountOutMinimum: bigint;
-	deadlineSeconds: bigint;
 	proposal: TradeProposal;
 	recipient: Address;
 	route: ConfiguredSepoliaV3Route;
 }): `0x${string}` {
-	const {
-		amountIn,
-		amountOutMinimum,
-		deadlineSeconds,
-		proposal,
-		recipient,
-		route,
-	} = params;
+	const { amountIn, amountOutMinimum, proposal, recipient, route } = params;
 	if (route.kind === "single") {
 		return encodeFunctionData({
-			abi: SWAP_ROUTER_ABI,
+			abi: SWAP_ROUTER02_ABI,
 			args: [
 				{
 					amountIn,
 					amountOutMinimum,
-					deadline: deadlineSeconds,
 					fee: route.fee,
 					recipient,
 					sqrtPriceLimitX96: 0n,
@@ -289,12 +265,11 @@ function encodeSwapRouterCalldata(params: {
 		[route.firstFee, route.secondFee]
 	);
 	return encodeFunctionData({
-		abi: SWAP_ROUTER_ABI,
+		abi: SWAP_ROUTER02_ABI,
 		args: [
 			{
 				amountIn,
 				amountOutMinimum,
-				deadline: deadlineSeconds,
 				path,
 				recipient,
 			},
@@ -426,7 +401,6 @@ export class UniswapBuilder {
 			route.kind === "single"
 				? await quoteSingleHop(
 						publicClient,
-						route.poolAddress,
 						route.fee,
 						tokenInSdk,
 						tokenOutSdk,
@@ -445,10 +419,9 @@ export class UniswapBuilder {
 		const amountOutMinimum =
 			(quoteOutWei * BigInt(10_000 - maxSlippageBps)) / 10_000n;
 
-		const calldata = encodeSwapRouterCalldata({
+		const calldata = encodeSwapRouter02Calldata({
 			amountIn,
 			amountOutMinimum,
-			deadlineSeconds,
 			proposal,
 			recipient: this.recipientAddress,
 			route,
