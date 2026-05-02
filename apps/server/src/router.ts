@@ -563,6 +563,15 @@ export const appRouter = {
 			const balances = await context.services.getVaultBalances(vaultConfig);
 
 			return {
+				hubTokenKey: balances.hubTokenKey,
+				tokens: balances.tokens.map((t) => ({
+					address: t.address,
+					decimals: t.decimals,
+					isHub: t.isHub,
+					key: t.key,
+					symbol: t.symbol,
+					wei: t.wei.toString(),
+				})),
 				usdcWei: balances.usdcWei.toString(),
 				wethWei: balances.wethWei.toString(),
 			};
