@@ -40,6 +40,8 @@ const DEX_SCREENER_BASE_URL = "https://api.dexscreener.com";
 
 const toLowerAddress = (value: string) => value.toLowerCase();
 
+const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
+
 const normalizeChainIdForDexScreener = (chainId: number): string[] => {
 	// DexScreener uses string chain ids. Base Sepolia support may be limited.
 	if (chainId === 8453) {
@@ -230,13 +232,32 @@ async function fetchFirstAvailableMarketContext({
 
 	for (const chain of chainCandidates) {
 		try {
+			if (isDebugEnabled()) {
+				console.log("[DexScreener] fetching pairs", {
+					chain,
+					tokenIn,
+					tokenOut,
+				});
+			}
 			const pairs = await fetchPairsForToken({ chain, tokenAddress: tokenIn });
 			const best = pickBestMatchingPair({ pairs, tokenIn, tokenOut });
 			if (!best) {
+				if (isDebugEnabled()) {
+					console.log("[DexScreener] no matching pair", {
+						chain,
+						pairs: pairs.length,
+					});
+				}
 				continue;
 			}
 			return buildMarketContextFromPair({ chain, pair: best });
-		} catch {
+		} catch (error) {
+			if (isDebugEnabled()) {
+				console.log("[DexScreener] fetch failed", {
+					chain,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 			// Best-effort: try next candidate.
 		}
 	}

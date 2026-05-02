@@ -14,6 +14,7 @@ import {
 	listVaultsOutputSchema,
 	prepareVaultDeploymentOutputSchema,
 	prepareVaultDeploymentSchema,
+	setVaultAutopilotSchema,
 } from "../vault-types";
 
 // NOTE: This router is a template that gets extended by the server.
@@ -80,6 +81,14 @@ export const appRouterTemplate = {
 	getVaultBalancesByVaultId: authedProcedure
 		.input(getVaultBalancesSchema)
 		.output(getVaultBalancesOutputSchema)
+		.handler(() => {
+			throw new ORPCError("NOT_IMPLEMENTED", {
+				message: "Server must implement this procedure",
+			});
+		}),
+
+	setVaultAutopilot: authedProcedure
+		.input(setVaultAutopilotSchema)
 		.handler(() => {
 			throw new ORPCError("NOT_IMPLEMENTED", {
 				message: "Server must implement this procedure",

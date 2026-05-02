@@ -47,6 +47,10 @@ export async function runTradeCycleInternal({
 		context.auth.privyUserId,
 		input.vaultId
 	);
+
+	const autopilotEnabled = Boolean(profile.autopilot);
+	const effectiveDryRun = input.dryRun || !autopilotEnabled;
+
 	debugLog(cycleId, "resolved vault", {
 		vaultAddress,
 		tokenIn: profile.tokenIn,
@@ -54,6 +58,7 @@ export async function runTradeCycleInternal({
 		maxTradeBps: profile.maxTradeBps,
 		defaultMaxSlippageBps: profile.maxSlippageBps,
 		memoryPointer: profile.memoryPointer,
+		autopilot: autopilotEnabled,
 	});
 
 	const vaultConfig: VaultConfig = {
@@ -133,7 +138,7 @@ export async function runTradeCycleInternal({
 	let execution: KeeperExecutionResult | null = null;
 	let route: CycleLogRecord["route"] = null;
 
-	if (!input.dryRun && riskDecision.decision === "APPROVE") {
+	if (!effectiveDryRun && riskDecision.decision === "APPROVE") {
 		const routeResult = await context.services.buildRoute(
 			proposal,
 			effectiveMaxSlippageBps,
@@ -177,6 +182,7 @@ export async function runTradeCycleInternal({
 		timestamp: new Date().toISOString(),
 		input: {
 			...input,
+			dryRun: effectiveDryRun,
 			amountIn: effectiveAmountIn,
 			maxSlippageBps: effectiveMaxSlippageBps,
 		},

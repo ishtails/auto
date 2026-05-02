@@ -158,6 +158,9 @@ export default function VaultDetailPage() {
 	});
 
 	const runTradeCycle = useMutation(orpc.runTradeCycle.mutationOptions());
+	const setVaultAutopilot = useMutation(
+		orpc.setVaultAutopilot.mutationOptions()
+	);
 
 	const cycles = useVaultCycles({
 		vaultId,
@@ -356,6 +359,37 @@ export default function VaultDetailPage() {
 						</div>
 
 						<div className="flex flex-wrap gap-3">
+							<Button
+								className="border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+								disabled={!vault || setVaultAutopilot.isPending}
+								onClick={() => {
+									if (!vault) {
+										return;
+									}
+									const next = !vault.autopilot;
+									setVaultAutopilot
+										.mutateAsync({ vaultId, autopilot: next })
+										.then(() => {
+											toast.success(
+												next
+													? "Autopilot enabled (agent can execute)"
+													: "Autopilot disabled (suggestions only)"
+											);
+											return queryClient.invalidateQueries({
+												queryKey: orpc.listVaults.queryOptions().queryKey,
+											});
+										})
+										.catch(() => {
+											/* errors surfaced via toast */
+										});
+								}}
+								type="button"
+								variant="outline"
+							>
+								<ShieldCheck className="size-4" />
+								Autopilot: {vault?.autopilot ? "On" : "Off"}
+							</Button>
+
 							<Button
 								className="bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
 								onClick={() => {

@@ -10,6 +10,7 @@ import {
 	getVaultDeploymentSchema,
 	listVaultsOutputSchema,
 	prepareVaultDeploymentSchema,
+	setVaultAutopilotSchema,
 } from "@auto/api/vault-types";
 import {
 	VAULT_FACTORY_ABI,
@@ -210,6 +211,7 @@ export const appRouter = {
 				status: vault.status,
 				riskScore: vault.agentProfile?.maxTradeBps ?? 50,
 				maxSlippageBps: vault.agentProfile?.maxSlippageBps ?? 100,
+				autopilot: vault.agentProfile?.autopilot ?? false,
 				vaultAddress: vault.vaultAddress ?? null,
 				tokenIn: vault.agentProfile?.tokenIn ?? null,
 				tokenOut: vault.agentProfile?.tokenOut ?? null,
@@ -289,6 +291,7 @@ export const appRouter = {
 					vaultId: vault.id,
 					name: input.name,
 					geminiSystemPrompt: input.geminiSystemPrompt,
+					autopilot: input.autopilot ?? false,
 					maxTradeBps: input.maxTradeBps,
 					maxSlippageBps: input.maxSlippageBps,
 					tokenIn: input.tokenIn,
@@ -334,6 +337,41 @@ export const appRouter = {
 				status: "queued",
 				profileId: profileResult[0]?.id,
 			};
+		}),
+
+	setVaultAutopilot: authedProcedure
+		.input(setVaultAutopilotSchema)
+		.handler(async ({ context, input }) => {
+			if (context.auth?.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Requires user context",
+				});
+			}
+
+			const user = await db.query.users.findFirst({
+				where: eq(users.privyUserId, context.auth.privyUserId),
+			});
+
+			if (!user) {
+				throw new ORPCError("NOT_FOUND", { message: "User not found" });
+			}
+
+			const vault = await db.query.vaults.findFirst({
+				where: and(eq(vaults.id, input.vaultId), eq(vaults.userId, user.id)),
+			});
+
+			if (!vault) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Not authorized to update this vault",
+				});
+			}
+
+			await db
+				.update(agentProfiles)
+				.set({ autopilot: input.autopilot, updatedAt: new Date() })
+				.where(eq(agentProfiles.vaultId, vault.id));
+
+			return { ok: true };
 		}),
 
 	getVaultDeployment: authedProcedure

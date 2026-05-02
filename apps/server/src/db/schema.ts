@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -90,6 +91,7 @@ export const agentProfiles = pgTable("agent_profiles", {
 		.references(() => vaults.id),
 	name: text("name").notNull(),
 	geminiSystemPrompt: text("gemini_system_prompt").notNull(),
+	autopilot: boolean("autopilot").notNull().default(false),
 	maxTradeBps: integer("max_trade_bps").notNull(),
 	maxSlippageBps: integer("max_slippage_bps").notNull(),
 	tokenIn: text("token_in").notNull(), // hex address

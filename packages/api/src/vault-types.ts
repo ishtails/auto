@@ -32,6 +32,7 @@ export const prepareVaultDeploymentOutputSchema = z.object({
 export const createVaultDeploymentSchema = z.object({
 	name: z.string().min(1).max(100),
 	geminiSystemPrompt: z.string().min(1),
+	autopilot: z.boolean().optional(),
 	maxTradeBps: z.number().int().min(1).max(10_000),
 	maxSlippageBps: z.number().int().min(1).max(10_000),
 	tokenIn: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
@@ -78,9 +79,15 @@ export const vaultSchema = z.object({
 	riskScore: z.number(),
 	/** Agent profile max slippage in basis points (1 bps = 0.01%). */
 	maxSlippageBps: z.number().int(),
+	autopilot: z.boolean(),
 	vaultAddress: z.string().nullable(),
 	tokenIn: z.string().nullable(),
 	tokenOut: z.string().nullable(),
 });
 
 export const listVaultsOutputSchema = z.array(vaultSchema);
+
+export const setVaultAutopilotSchema = z.object({
+	vaultId: z.string().uuid(),
+	autopilot: z.boolean(),
+});

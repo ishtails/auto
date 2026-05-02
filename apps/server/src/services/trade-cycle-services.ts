@@ -113,6 +113,8 @@ const buildDexScreenerPromptContext = (
 		.join("\n");
 };
 
+const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
+
 export const createIntegrationServices = (): IntegrationServices => {
 	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
 	const axl = new AxlTransport(
@@ -208,6 +210,12 @@ export const createIntegrationServices = (): IntegrationServices => {
 			});
 
 			const marketContext = buildDexScreenerPromptContext(market);
+			if (isDebugEnabled()) {
+				console.log("[DexScreener] market context", {
+					available: Boolean(marketContext),
+					market,
+				});
+			}
 
 			return llm.generateProposal(
 				{
