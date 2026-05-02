@@ -931,7 +931,7 @@ export const VAULT_ABI = [
 ] as const;
 
 export const testnet = {
-	address: "0x7d0c3f7Fc90530C8C44694f9F3e668Ba8387BcDe" as const,
+	address: "0xA04F34798f6036cbD2A96725aa6Cc726D76c6aa9" as const,
 	abi: VAULT_ABI,
 };
 

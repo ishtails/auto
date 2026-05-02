@@ -12,8 +12,9 @@
     "check-types": "tsc -p tsconfig.json --noEmit",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy-factory.ts --network localhost",
-    "deploy:testnet": "hardhat run scripts/deploy-factory.ts --network baseSepolia",
+    "migrate": "hardhat run scripts/deploy-factory.ts --network localhost",
+    "migrate:legacy": "hardhat run scripts/deploy-vault-legacy.ts --network baseSepolia",
+    "migrate:testnet": "hardhat run scripts/deploy-factory.ts --network baseSepolia",
     "clean": "hardhat clean"
   },
   "devDependencies": {
