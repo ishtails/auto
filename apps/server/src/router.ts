@@ -45,7 +45,10 @@ const requireString = (value: string | undefined, label: string): string => {
 	return value;
 };
 
-async function getOwnedActiveVault(privyUserId: string, vaultId: string) {
+export async function getOwnedActiveVault(
+	privyUserId: string,
+	vaultId: string
+) {
 	const user = await db.query.users.findFirst({
 		where: eq(users.privyUserId, privyUserId),
 	});
@@ -380,6 +383,7 @@ export const appRouter = {
 				name: vault.agentProfile?.name ?? "Unnamed Vault",
 				status: vault.status,
 				riskScore: vault.agentProfile?.maxTradeBps ?? 50,
+				maxSlippageBps: vault.agentProfile?.maxSlippageBps ?? 100,
 				vaultAddress: vault.vaultAddress ?? null,
 				tokenIn: vault.agentProfile?.tokenIn ?? null,
 				tokenOut: vault.agentProfile?.tokenOut ?? null,

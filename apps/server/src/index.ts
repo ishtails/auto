@@ -7,6 +7,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { resolveAuth } from "./auth/middleware";
 import { appRouter } from "./router";
+import { registerCycleStreamRoutes } from "./routes/cycle-stream";
 import { createIntegrationServices } from "./services/trade-cycle-services";
 import "./services/deploy-queue";
 import { startupSync } from "./services/startup-sync";
@@ -81,6 +82,7 @@ app.get("/diagnostics", async (c) => {
 });
 
 // NOTE: `/rpc/*` is handled by oRPC above. Keep non-RPC routes below.
+registerCycleStreamRoutes(app);
 
 console.log("environment:", env.ENVIRONMENT);
 

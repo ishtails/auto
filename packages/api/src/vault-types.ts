@@ -76,6 +76,8 @@ export const vaultSchema = z.object({
 	name: z.string(),
 	status: z.string(),
 	riskScore: z.number(),
+	/** Agent profile max slippage in basis points (1 bps = 0.01%). */
+	maxSlippageBps: z.number().int(),
 	vaultAddress: z.string().nullable(),
 	tokenIn: z.string().nullable(),
 	tokenOut: z.string().nullable(),
