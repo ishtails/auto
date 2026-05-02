@@ -35,6 +35,30 @@ const resolveCycleMode = ({
 	return "live";
 };
 
+const requireTradeProposal = async ({
+	services,
+	state,
+	vaultConfig,
+	cycleId,
+}: {
+	services: IntegrationServices;
+	state: Awaited<ReturnType<IntegrationServices["getState"]>>;
+	vaultConfig: VaultConfig;
+	cycleId: string;
+}) => {
+	try {
+		return await services.generateProposal(state, vaultConfig);
+	} catch (error) {
+		const err = error instanceof Error ? error : new Error(String(error));
+		debugLog(cycleId, "llm failed", { message: err.message });
+		throw new ORPCError("INTERNAL_SERVER_ERROR", {
+			message:
+				"The agent couldn’t generate a recommendation right now. Please try again.",
+			data: { reason: err.message },
+		});
+	}
+};
+
 export async function runTradeCycleInternal({
 	context,
 	input,
@@ -128,7 +152,12 @@ export async function runTradeCycleInternal({
 		requestedAmountInWei: state.requestedAmountInWei.toString(),
 	});
 
-	const proposal = await context.services.generateProposal(state, vaultConfig);
+	const proposal = await requireTradeProposal({
+		services: context.services,
+		state,
+		vaultConfig,
+		cycleId,
+	});
 	debugLog(cycleId, "proposal", {
 		action: proposal.action,
 		tokenIn: proposal.tokenIn,

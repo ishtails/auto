@@ -46,6 +46,7 @@ export function ManualCycleSheet() {
 		null
 	);
 	const [lastError, setLastError] = useState<string | null>(null);
+	const [lastErrorReason, setLastErrorReason] = useState<string | null>(null);
 	const autopilotEnabled = Boolean(vault?.autopilot);
 
 	const executionStatus = (() => {
@@ -80,11 +81,13 @@ export function ManualCycleSheet() {
 		setDryRun(false);
 		setLastResult(null);
 		setLastError(null);
+		setLastErrorReason(null);
 	}, [triggerSheetOpen, vault]);
 
 	const submit = () => {
 		setLastResult(null);
 		setLastError(null);
+		setLastErrorReason(null);
 
 		const size = Number.parseInt(tradeSizeBps, 10);
 		const slip = Number.parseInt(maxSlippageBps, 10);
@@ -124,6 +127,9 @@ export function ManualCycleSheet() {
 				},
 				onError: (error) => {
 					setLastError(error.message);
+					// Best-effort: extract server-provided reason when oRPC surfaces it.
+					const maybeAny = error as unknown as { data?: { reason?: string } };
+					setLastErrorReason(maybeAny.data?.reason ?? null);
 					toast.error(error.message);
 				},
 			}
@@ -252,9 +258,16 @@ export function ManualCycleSheet() {
 								Last response
 							</p>
 							{lastError ? (
-								<p className="mt-2 font-manrope text-[#ffb59e] text-sm">
-									{lastError}
-								</p>
+								<div className="mt-2 grid gap-2">
+									<p className="font-manrope text-[#ffb59e] text-sm">
+										{lastError}
+									</p>
+									{lastErrorReason ? (
+										<p className="font-manrope text-[#a38c85] text-xs">
+											Details: {lastErrorReason}
+										</p>
+									) : null}
+								</div>
 							) : (
 								lastResult && (
 									<dl className="mt-3 grid gap-2 font-manrope text-sm">
