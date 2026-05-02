@@ -40,7 +40,9 @@ export class LlmAgent {
 			reasoning: string;
 			timestamp: string;
 			status: string;
-		}[]
+		}[],
+		marketContext?: string,
+		userSystemPrompt?: string
 	): Promise<TradeProposal> {
 		// Mock mode: return predefined response without calling Gemini
 		if (this.mockMode) {
@@ -70,8 +72,26 @@ export class LlmAgent {
 			].join("\n");
 		}
 
+		const systemGuidance = [
+			userSystemPrompt ? "=== USER INSTRUCTIONS ===" : undefined,
+			userSystemPrompt ? userSystemPrompt.trim() : undefined,
+			userSystemPrompt ? "=== END USER INSTRUCTIONS ===" : undefined,
+			"",
+			"OPERATIONAL INSTRUCTIONS:",
+			"- If MARKET CONTEXT is provided, use it to ground your action (trend, momentum, volume imbalance).",
+			"- If MARKET CONTEXT is missing/unavailable, proceed using on-chain state + memory; mention uncertainty in reasoning.",
+			"- Use MEMORY to avoid repeating recent mistakes and to avoid over-trading back-to-back.",
+			"- Prefer HOLD when data is weak, contradictory, or liquidity/volume looks unhealthy.",
+		]
+			.filter(
+				(line): line is string => typeof line === "string" && line.length > 0
+			)
+			.join("\n");
+
 		const prompt = [
 			"You are an autonomous trading agent with memory. Return strict JSON only.",
+			"",
+			systemGuidance,
 			"",
 			"TRADING RULES:",
 			`- tokenIn=${input.tokenIn} is the token the vault CURRENTLY HOLDS (what we SELL)`,
@@ -85,12 +105,18 @@ export class LlmAgent {
 			`tokenOut=${input.tokenOut} (vault wants this - BUY)`,
 			`amountInWei=${input.amountInWei.toString()}`,
 			`priceHint=${input.priceHint ?? "unknown"}`,
+			marketContext ? "" : undefined,
+			marketContext ? "=== MARKET CONTEXT (REAL-TIME) ===" : undefined,
+			marketContext ? marketContext : undefined,
+			marketContext ? "=== END MARKET CONTEXT ===" : undefined,
 			memoryContext,
 			"",
 			`schema={"action":"BUY|SELL|HOLD","tokenIn":"0x...","tokenOut":"0x...","amountInWei":"uint","reasoning":"string"}`,
 			"",
 			"CRITICAL: Use the exact tokenIn and tokenOut addresses provided above. Do NOT swap them.",
-		].join("\n");
+		]
+			.filter((line): line is string => typeof line === "string")
+			.join("\n");
 
 		const response = await this.ai.models.generateContent({
 			model: this.model,

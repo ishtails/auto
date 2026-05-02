@@ -1,8 +1,10 @@
 import type { IntegrationServices } from "@auto/api/context";
 import type { RiskDecision, TradeProposal } from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
+import { db } from "../db";
 import { AxlTransport } from "../integrations/axl-transport";
 import { ChainStateClient } from "../integrations/chain-state";
+import { getDexScreenerMarketContext } from "../integrations/dexscreener";
 import { KeeperHubClient } from "../integrations/keeperhub-client";
 import { LlmAgent } from "../integrations/llm-agent";
 import { OgLogger } from "../integrations/og-logger";
@@ -22,6 +24,94 @@ const chainIdToKeeperNetwork = (chainId: number): string => {
 
 const MEMORY_READ_TIMEOUT_MS = 2500;
 const LOG_WRITE_TIMEOUT_MS = 8000;
+
+const autoVaultIdPrefix = "auto-vault-";
+const uuidLikeRegex =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const extractVaultIdFromMemoryPointer = (
+	memoryPointer: string
+): string | null => {
+	if (!memoryPointer.startsWith(autoVaultIdPrefix)) {
+		return null;
+	}
+	const id = memoryPointer.slice(autoVaultIdPrefix.length);
+	// Basic shape check: uuid v4-ish
+	if (!uuidLikeRegex.test(id)) {
+		return null;
+	}
+	return id;
+};
+
+const getRecentMemoryFromDb = async (
+	memoryPointer: string
+): Promise<
+	{
+		action: string;
+		reasoning: string;
+		timestamp: string;
+		status: string;
+	}[]
+> => {
+	const vaultId = extractVaultIdFromMemoryPointer(memoryPointer);
+	if (!vaultId) {
+		return [];
+	}
+
+	const rows = await db.query.vaultCycleLogs.findMany({
+		where: (table, { eq }) => eq(table.vaultId, vaultId),
+		orderBy: (table, { desc }) => desc(table.occurredAt),
+		limit: 5,
+	});
+
+	return rows.map((row) => {
+		const record = row.record as {
+			proposal?: { action?: string; reasoning?: string };
+			riskDecision?: { decision?: string };
+			timestamp?: string;
+		};
+
+		return {
+			action: record.proposal?.action ?? "UNKNOWN",
+			reasoning: record.proposal?.reasoning ?? "",
+			timestamp: record.timestamp ?? row.occurredAt.toISOString(),
+			status: record.riskDecision?.decision ?? row.decision,
+		};
+	});
+};
+
+const buildDexScreenerPromptContext = (
+	market: Awaited<ReturnType<typeof getDexScreenerMarketContext>>
+): string | undefined => {
+	if (!market) {
+		return;
+	}
+	return [
+		`source=${market.source}`,
+		`chain=${market.chain}`,
+		market.dexId ? `dex=${market.dexId}` : null,
+		market.pairAddress ? `pair=${market.pairAddress}` : null,
+		market.url ? `url=${market.url}` : null,
+		market.priceUsd ? `priceUsd=${market.priceUsd}` : null,
+		market.priceNative ? `priceNative=${market.priceNative}` : null,
+		market.priceChange1hPct === null
+			? null
+			: `priceChange1hPct=${market.priceChange1hPct}`,
+		market.priceChange24hPct === null
+			? null
+			: `priceChange24hPct=${market.priceChange24hPct}`,
+		market.buys1h !== null && market.sells1h !== null
+			? `txns1h(buys=${market.buys1h}, sells=${market.sells1h}, ratio=${market.buySellRatio1h ?? "n/a"})`
+			: null,
+		market.buys24h !== null && market.sells24h !== null
+			? `txns24h(buys=${market.buys24h}, sells=${market.sells24h}, ratio=${market.buySellRatio24h ?? "n/a"})`
+			: null,
+		market.volume24h === null ? null : `volume24h=${market.volume24h}`,
+		market.liquidityUsd === null ? null : `liquidityUsd=${market.liquidityUsd}`,
+	]
+		.filter((line): line is string => typeof line === "string")
+		.join("\n");
+};
 
 export const createIntegrationServices = (): IntegrationServices => {
 	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
@@ -90,18 +180,34 @@ export const createIntegrationServices = (): IntegrationServices => {
 				env.OG_FLOW_CONTRACT
 			);
 
-			const recentLogs = await Promise.race([
-				dynamicLogger.readRecentLogs(5).catch(() => []),
-				new Promise<[]>((resolve) =>
-					setTimeout(() => resolve([]), MEMORY_READ_TIMEOUT_MS)
-				),
-			]);
-			const memory = recentLogs.map((log) => ({
-				action: log.proposal.action,
-				reasoning: log.proposal.reasoning,
-				timestamp: log.timestamp,
-				status: log.riskDecision.decision,
-			}));
+			// Prefer Postgres cache (reliable). Fall back to 0G read (best-effort).
+			const memoryFromDb = await getRecentMemoryFromDb(streamId).catch(
+				() => []
+			);
+			const memory =
+				memoryFromDb.length > 0
+					? memoryFromDb
+					: await Promise.race([
+							dynamicLogger.readRecentLogs(5).catch(() => []),
+							new Promise<[]>((resolve) =>
+								setTimeout(() => resolve([]), MEMORY_READ_TIMEOUT_MS)
+							),
+						]).then((recentLogs) =>
+							recentLogs.map((log) => ({
+								action: log.proposal.action,
+								reasoning: log.proposal.reasoning,
+								timestamp: log.timestamp,
+								status: log.riskDecision.decision,
+							}))
+						);
+
+			const market = await getDexScreenerMarketContext({
+				chainId: env.CHAIN_ID,
+				tokenIn: state.tokenIn,
+				tokenOut: state.tokenOut,
+			});
+
+			const marketContext = buildDexScreenerPromptContext(market);
 
 			return llm.generateProposal(
 				{
@@ -111,7 +217,9 @@ export const createIntegrationServices = (): IntegrationServices => {
 					tokenOut: state.tokenOut,
 					amountInWei: state.requestedAmountInWei,
 				},
-				memory
+				memory,
+				marketContext,
+				vaultConfig.geminiSystemPrompt
 			);
 		},
 		sendToRiskAgent: async (proposal: TradeProposal) => {
