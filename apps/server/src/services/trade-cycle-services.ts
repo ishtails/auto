@@ -25,6 +25,7 @@ import { OgLogger } from "../integrations/og-logger";
 import { evaluateRisk } from "../integrations/risk-gate";
 import { UniswapBuilder } from "../integrations/uniswap-builder";
 import { encodeVaultExecuteTrade } from "../integrations/vault-executor";
+import { integrationDebugLog } from "../router/debug";
 import { rawCycleLogToLlmTradingMemory } from "./trading-memory";
 
 const chainIdToKeeperNetwork = (chainId: number): string => {
@@ -117,7 +118,9 @@ const buildDexScreenerPromptContext = (
 
 const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
 
-const resolveUniswapTradeApiConfig = ():
+const resolveUniswapTradeApiConfig = (
+	cycleId?: string
+):
 	| {
 			apiKey: string;
 			baseUrl: string;
@@ -132,13 +135,11 @@ const resolveUniswapTradeApiConfig = ():
 	const onSepoliaWithOptIn =
 		env.CHAIN_ID === baseSepolia.id && env.UNISWAP_TRADE_API_ON_SEPOLIA;
 	if (!(onMainnet || onSepoliaWithOptIn)) {
-		if (
-			env.CHAIN_ID === baseSepolia.id &&
-			isDebugEnabled() &&
-			env.UNISWAP_TRADE_API_KEY
-		) {
-			console.log(
-				"[Uniswap] UNISWAP_TRADE_API_KEY is set but UNISWAP_TRADE_API_ON_SEPOLIA is false — using configured Sepolia V3 / SwapRouter02 calldata (not Universal Router)"
+		if (env.CHAIN_ID === baseSepolia.id && env.UNISWAP_TRADE_API_KEY) {
+			integrationDebugLog(
+				cycleId,
+				"Uniswap",
+				"Sepolia: UNISWAP_TRADE_API_ON_SEPOLIA is false — using configured V3 pools + SwapRouter02 (not Trading API / Universal Router)"
 			);
 		}
 		return;
@@ -344,25 +345,34 @@ export const createIntegrationServices = (): IntegrationServices => {
 					portfolioBalancesWei: state.portfolioBalancesWei,
 				})
 			),
-		buildRoute: (proposal, maxSlippageBps, vaultConfig) => {
+		buildRoute: (proposal, maxSlippageBps, vaultConfig, options) => {
+			const cycleId = options?.cycleId;
 			const dynamicUniswap = new UniswapBuilder({
 				chainId: env.CHAIN_ID,
+				cycleId,
 				recipientAddress: vaultConfig.vaultAddress,
 				routerAddress: env.UNISWAP_ROUTER_ADDRESS,
 				rpcUrl: env.ROUTER_RPC_URL ?? env.CHAIN_RPC_URL,
-				tradeApi: resolveUniswapTradeApiConfig(),
+				tradeApi: resolveUniswapTradeApiConfig(cycleId),
 			});
 			return dynamicUniswap.buildRoute(proposal, maxSlippageBps, {
 				tokenInDecimals: getDecimalsForTokenAddress(proposal.tokenIn),
 				tokenOutDecimals: getDecimalsForTokenAddress(proposal.tokenOut),
 			});
 		},
-		executeVaultTrade: async ({ route, tokenOut: _tokenOut, vaultConfig }) => {
+		executeVaultTrade: async ({
+			route,
+			tokenOut: _tokenOut,
+			vaultConfig,
+			cycleId,
+		}) => {
 			const encoded = encodeVaultExecuteTrade(vaultConfig.vaultAddress, route);
 
 			if (env.MOCK_EXECUTION) {
-				console.log(
-					"[Execution] Mock mode enabled, simulating successful transaction"
+				integrationDebugLog(
+					cycleId,
+					"Keeper Hub",
+					"mock execution enabled — simulating successful transaction"
 				);
 				await new Promise((resolve) => setTimeout(resolve, 1000));
 				return {
@@ -376,6 +386,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 			return keeperhub.executeContractCall({
 				abi: encoded.abi,
 				contractAddress: encoded.target,
+				cycleId,
 				functionArgs: encoded.functionArgs,
 				functionName: encoded.functionName,
 				network: chainIdToKeeperNetwork(env.CHAIN_ID),

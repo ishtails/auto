@@ -45,7 +45,8 @@ export interface IntegrationServices {
 	buildRoute: (
 		proposal: TradeProposal,
 		maxSlippageBps: number,
-		vaultConfig: VaultConfig
+		vaultConfig: VaultConfig,
+		options?: { cycleId?: string }
 	) => Promise<RouteBuildResult>;
 	evaluateRisk: (
 		proposal: TradeProposal,
@@ -56,6 +57,8 @@ export interface IntegrationServices {
 		route: RouteBuildResult;
 		tokenOut: string;
 		vaultConfig: VaultConfig;
+		/** When set, Keeper Hub steps log under DEBUG run-trade-cycle. */
+		cycleId?: string;
 	}) => Promise<KeeperExecutionResult>;
 	generateProposal: (
 		state: TradeCycleState,

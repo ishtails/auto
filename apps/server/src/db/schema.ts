@@ -106,7 +106,9 @@ export const agentProfiles = pgTable("agent_profiles", {
 		.notNull()
 		.$onUpdate(() => new Date()),
 	/** 0 = off. Otherwise one of `SCHEDULE_CADENCE_SECONDS` presets (see @auto/api/schedule-cadence). */
-	scheduleCadenceSeconds: integer("schedule_cadence_seconds").notNull().default(0),
+	scheduleCadenceSeconds: integer("schedule_cadence_seconds")
+		.notNull()
+		.default(0),
 	/** Next scheduled trade cycle (UTC). Null when schedule is off. */
 	scheduleNextRunAt: timestamp("schedule_next_run_at", { withTimezone: true }),
 });

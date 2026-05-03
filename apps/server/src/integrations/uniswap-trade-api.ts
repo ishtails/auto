@@ -1,5 +1,6 @@
 import type { RouteBuildResult, TradeProposal } from "@auto/api/trade-types";
 import { base, baseSepolia } from "viem/chains";
+import { integrationDebugLog } from "../router/debug";
 
 /** Chains we pass through to the Trading API (quote/swap must agree on chainId). */
 const TRADE_API_CHAIN_IDS: ReadonlySet<number> = new Set([
@@ -26,6 +27,8 @@ export interface UniswapTradeApiConfig {
 export interface BuildRouteViaTradeApiInput {
 	chainId: number;
 	configuredRouterAddress: string;
+	/** When set, logs Trading API steps under DEBUG run-trade-cycle. */
+	cycleId?: string;
 	maxSlippageBps: number;
 	proposal: TradeProposal;
 	recipientVaultAddress: string;
@@ -89,11 +92,26 @@ async function postJson<T>({
 export async function buildRouteViaUniswapTradeApi(
 	input: BuildRouteViaTradeApiInput
 ): Promise<RouteBuildResult> {
+	const { cycleId } = input;
+
 	if (!TRADE_API_CHAIN_IDS.has(input.chainId)) {
 		throw new Error(
 			`buildRouteViaUniswapTradeApi: unsupported chainId ${input.chainId} (supported: ${[...TRADE_API_CHAIN_IDS].join(", ")})`
 		);
 	}
+
+	integrationDebugLog(
+		cycleId,
+		"Uniswap",
+		"Trading API: starting quote → swap flow",
+		{
+			chainId: input.chainId,
+			swapper: input.recipientVaultAddress,
+			tokenIn: input.proposal.tokenIn,
+			tokenOut: input.proposal.tokenOut,
+			amountInWei: input.proposal.amountInWei,
+		}
+	);
 
 	const {
 		apiKey,
@@ -132,6 +150,13 @@ export async function buildRouteViaUniswapTradeApi(
 		type: "EXACT_INPUT",
 	};
 
+	integrationDebugLog(cycleId, "Uniswap", "Trading API: POST /quote", {
+		baseUrl: baseUrl.replace(TRAILING_SLASH_RE, ""),
+		hooksOptions: quoteBody.hooksOptions,
+		protocols: quoteBody.protocols,
+		slippageTolerance,
+	});
+
 	const quoteRes = await postJson<Record<string, unknown>>({
 		body: quoteBody,
 		headers,
@@ -168,9 +193,19 @@ export async function buildRouteViaUniswapTradeApi(
 		throw new Error("Uniswap /quote returned a non-classic quote payload");
 	}
 
+	integrationDebugLog(cycleId, "Uniswap", "Trading API: /quote OK", {
+		routing: qPayload.routing,
+		quoteOutAmount: innerQuote.output.amount,
+	});
+
 	const quoteOutWei = BigInt(innerQuote.output.amount);
 	const amountOutMinimum =
 		(quoteOutWei * BigInt(10_000 - input.maxSlippageBps)) / 10_000n;
+
+	integrationDebugLog(cycleId, "Uniswap", "Trading API: POST /swap", {
+		deadline: deadlineUnix,
+		simulateTransaction: false,
+	});
 
 	const swapRes = await postJson<{
 		swap?: {
@@ -221,6 +256,13 @@ export async function buildRouteViaUniswapTradeApi(
 			`Uniswap /swap router ${swap.to} does not match UNISWAP_ROUTER_ADDRESS ${input.configuredRouterAddress}. Deploy or reconfigure the vault’s swapRouter to the Universal Router address the API targets.`
 		);
 	}
+
+	integrationDebugLog(cycleId, "Uniswap", "Trading API: /swap OK", {
+		calldataBytes: swap.data.length,
+		from: swap.from,
+		router: swap.to,
+		value: swap.value,
+	});
 
 	return {
 		amountIn,

@@ -13,6 +13,7 @@ import {
 	getDecimalsForTokenAddress,
 	TOKENS,
 } from "../config";
+import { integrationDebugLog } from "../router/debug";
 import {
 	buildRouteViaUniswapTradeApi,
 	type UniswapTradeApiConfig,
@@ -98,14 +99,14 @@ const SWAP_ROUTER02_ABI = [
 
 interface BuildRouteConfig {
 	chainId: number;
+	/** When set, Uniswap steps are logged under DEBUG run-trade-cycle. */
+	cycleId?: string;
 	recipientAddress: string;
 	routerAddress: string;
 	rpcUrl: string;
 	/** When set with Base mainnet, routes via Uniswap Trading API (Universal Router, v2/v3/v4). */
 	tradeApi?: UniswapTradeApiConfig;
 }
-
-const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
 
 const toSdkToken = (
 	chainId: number,
@@ -280,6 +281,7 @@ function encodeSwapRouter02Calldata(params: {
 
 export class UniswapBuilder {
 	private readonly chainId: number;
+	private readonly cycleId?: string;
 	private readonly recipientAddress: Address;
 	private readonly routerAddress: Address;
 	private readonly rpcUrl: string;
@@ -287,6 +289,7 @@ export class UniswapBuilder {
 
 	constructor(config: BuildRouteConfig) {
 		this.chainId = config.chainId;
+		this.cycleId = config.cycleId;
 		this.recipientAddress = config.recipientAddress as Address;
 		this.routerAddress = config.routerAddress as Address;
 		this.rpcUrl = config.rpcUrl;
@@ -303,16 +306,32 @@ export class UniswapBuilder {
 			throw new Error("amountIn must be positive");
 		}
 
+		integrationDebugLog(this.cycleId, "Uniswap", "route path selection", {
+			chainId: this.chainId,
+			hasTradeApiKey: Boolean(this.tradeApi?.apiKey),
+			tokenIn: proposal.tokenIn,
+			tokenOut: proposal.tokenOut,
+		});
+
 		if (this.chainId === base.id) {
 			if (!this.tradeApi?.apiKey) {
 				throw new Error(
 					`Base mainnet (${base.id}) requires UNISWAP_TRADE_API_KEY (Uniswap Developer Platform) and UNISWAP_ROUTER_ADDRESS set to the Universal Router used by the API`
 				);
 			}
+			integrationDebugLog(
+				this.cycleId,
+				"Uniswap",
+				"using Developer Platform (mainnet)",
+				{
+					path: "Trading API → Universal Router",
+				}
+			);
 			// No local pool fallback on mainnet: TOKENS execution addresses are Sepolia; API is the supported path.
 			return await buildRouteViaUniswapTradeApi({
 				chainId: this.chainId,
 				configuredRouterAddress: this.routerAddress,
+				cycleId: this.cycleId,
 				maxSlippageBps,
 				proposal,
 				recipientVaultAddress: this.recipientAddress,
@@ -323,9 +342,15 @@ export class UniswapBuilder {
 		if (this.chainId === baseSepolia.id) {
 			if (this.tradeApi?.apiKey) {
 				try {
+					integrationDebugLog(
+						this.cycleId,
+						"Uniswap",
+						"Sepolia: attempting Trading API first (UNISWAP_TRADE_API_ON_SEPOLIA)"
+					);
 					return await buildRouteViaUniswapTradeApi({
 						chainId: this.chainId,
 						configuredRouterAddress: this.routerAddress,
+						cycleId: this.cycleId,
 						maxSlippageBps,
 						proposal,
 						recipientVaultAddress: this.recipientAddress,
@@ -334,12 +359,12 @@ export class UniswapBuilder {
 				} catch (apiError) {
 					const detail =
 						apiError instanceof Error ? apiError.message : String(apiError);
-					if (isDebugEnabled()) {
-						console.warn(
-							"[UniswapBuilder] Trading API failed; using configured Sepolia pools (exactInput*):",
-							detail
-						);
-					}
+					integrationDebugLog(
+						this.cycleId,
+						"Uniswap",
+						"Sepolia: Trading API failed — falling back to QuoterV2 + SwapRouter02 (configured pools)",
+						{ error: detail }
+					);
 					return await this.buildRouteSepoliaConfiguredV3(
 						proposal,
 						maxSlippageBps,
@@ -347,6 +372,11 @@ export class UniswapBuilder {
 					);
 				}
 			}
+			integrationDebugLog(
+				this.cycleId,
+				"Uniswap",
+				"Sepolia: using QuoterV2 + SwapRouter02 only (no Trading API key)"
+			);
 			return await this.buildRouteSepoliaConfiguredV3(
 				proposal,
 				maxSlippageBps,
@@ -376,6 +406,14 @@ export class UniswapBuilder {
 			proposal.tokenIn,
 			proposal.tokenOut
 		);
+
+		integrationDebugLog(this.cycleId, "Uniswap", "Sepolia pools: quoting", {
+			routeKind: route.kind,
+			via:
+				route.kind === "single"
+					? `single-hop fee=${route.fee}`
+					: `two-hop WETH fees=${route.firstFee}/${route.secondFee}`,
+		});
 
 		const publicClient = makeSepoliaPublicClient(this.rpcUrl);
 
@@ -425,6 +463,14 @@ export class UniswapBuilder {
 			proposal,
 			recipient: this.recipientAddress,
 			route,
+		});
+
+		integrationDebugLog(this.cycleId, "Uniswap", "Sepolia pools: route ready", {
+			amountOutMinimum: amountOutMinimum.toString(),
+			calldataBytes: calldata.length,
+			quoteOut: quoteOutWei.toString(),
+			swapFunction: route.kind === "single" ? "exactInputSingle" : "exactInput",
+			targetRouter: this.routerAddress,
 		});
 
 		return {

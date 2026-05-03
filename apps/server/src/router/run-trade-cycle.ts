@@ -13,7 +13,12 @@ import { TOKENS } from "../config";
 import { ChainStateClient } from "../integrations/chain-state";
 import { cacheCycleLogToDb } from "./cycle-log-cache";
 import { sanitizeCycleLogRecord } from "./cycle-log-sanitize";
-import { debugLog, requireNumber, requireString } from "./debug";
+import {
+	debugLog,
+	integrationDebugLog,
+	requireNumber,
+	requireString,
+} from "./debug";
 import { getOwnedActiveVault } from "./owned-vault";
 import { buildRuleBasedFallbackProposal } from "./rule-based-fallback";
 
@@ -305,9 +310,10 @@ export async function runTradeCycleInternal({
 		const routeResult = await context.services.buildRoute(
 			proposal,
 			effectiveMaxSlippageBps,
-			vaultConfig
+			vaultConfig,
+			{ cycleId }
 		);
-		debugLog(cycleId, "route built", {
+		integrationDebugLog(cycleId, "Uniswap", "route build complete", {
 			target: routeResult.target,
 			amountIn: routeResult.amountIn.toString(),
 			amountOutMinimum: routeResult.amountOutMinimum.toString(),
@@ -326,11 +332,12 @@ export async function runTradeCycleInternal({
 		};
 
 		execution = await context.services.executeVaultTrade({
+			cycleId,
 			route: routeResult,
 			tokenOut: proposal.tokenOut,
 			vaultConfig,
 		});
-		debugLog(cycleId, "execution result", execution);
+		integrationDebugLog(cycleId, "Keeper Hub", "execution result", execution);
 
 		if (execution.status !== "completed" || !execution.txHash) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {

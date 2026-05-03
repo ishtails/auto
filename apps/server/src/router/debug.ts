@@ -4,6 +4,9 @@ import { ORPCError } from "@orpc/server";
 // `DEBUG=true` for investigating prod/testnet issues.
 export const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
 
+/** Integration name shown as `[Label] message` when `DEBUG=true` (grep-friendly). */
+export type IntegrationDebugLabel = "Uniswap" | "Keeper Hub" | "AXL" | "0G";
+
 export const debugLog = (cycleId: string, message: string, data?: unknown) => {
 	if (!isDebugEnabled()) {
 		return;
@@ -15,6 +18,25 @@ export const debugLog = (cycleId: string, message: string, data?: unknown) => {
 	}
 	console.log(prefix, message);
 };
+
+/** Same as `debugLog`, but prefixes the message with `[integration]` for sponsor/integration filtering. */
+export function integrationDebugLog(
+	cycleId: string | undefined,
+	integration: IntegrationDebugLabel,
+	message: string,
+	data?: unknown
+): void {
+	if (!(cycleId && isDebugEnabled())) {
+		return;
+	}
+	const prefix = `[runTradeCycle:${cycleId}]`;
+	const line = `[${integration}] ${message}`;
+	if (data) {
+		console.log(prefix, line, data);
+		return;
+	}
+	console.log(prefix, line);
+}
 
 export const requireNumber = (
 	value: number | undefined,
