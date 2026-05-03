@@ -77,6 +77,15 @@ export const env = createEnv({
 		OG_PRIVATE_KEY: z.string().min(1),
 		OG_KV_STREAM_ID: z.string().min(1),
 		OG_FLOW_CONTRACT: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+		/**
+		 * When true, each cycle also uploads a **DA / blob** trace (`MemData` + `Indexer.upload`)
+		 * per [Storage SDK](https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk) — dual pattern with **KV** hot keys.
+		 * Uses the same `OG_INDEXER_RPC`, `OG_RPC_URL`, and `OG_PRIVATE_KEY` as KV (no extra env).
+		 */
+		OG_DA_CYCLE_TRACE: z
+			.enum(["true", "false"])
+			.default("true")
+			.transform((v) => v === "true"),
 		/** Shown in `/diagnostics` — link to 0G Storage explorer (Galileo). */
 		OG_STORAGE_EXPLORER_BASE: z
 			.string()
