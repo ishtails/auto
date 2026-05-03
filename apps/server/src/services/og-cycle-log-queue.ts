@@ -4,7 +4,9 @@ import { Queue, Worker } from "bunqueue/client";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { vaultCycleLogs } from "../db/schema";
+import { uploadCycleTraceBlob } from "../integrations/og-cycle-da-blob";
 import { OgLogger } from "../integrations/og-logger";
+import { deriveOgLogPointer } from "../lib/og-log-pointer";
 import {
 	patchVaultCycleLogOgFailure,
 	patchVaultCycleLogOgStorage,
@@ -46,6 +48,45 @@ export const enqueueOgCycleLogJob = async (
 	await ogCycleLogQueue.add("complete-og-proof", payload);
 };
 
+async function tryUploadAndPatchDaTrace(args: {
+	cycleId: string;
+	memoryPointer: string;
+	vaultId: string;
+}): Promise<void> {
+	if (!env.OG_DA_CYCLE_TRACE) {
+		return;
+	}
+
+	const { cycleId, memoryPointer, vaultId } = args;
+	const fresh = await db.query.vaultCycleLogs.findFirst({
+		where: and(
+			eq(vaultCycleLogs.vaultId, vaultId),
+			eq(vaultCycleLogs.cycleId, cycleId)
+		),
+	});
+	const freshRecord = fresh?.record as CycleLogRecord | undefined;
+	const freshOg = freshRecord?.ogStorage;
+	if (!freshRecord || freshOg?.daRootHash?.trim()) {
+		return;
+	}
+
+	const da = await uploadCycleTraceBlob({ cycleId, record: freshRecord });
+	if (!da) {
+		return;
+	}
+
+	await patchVaultCycleLogOgStorage({
+		vaultId,
+		cycleId,
+		ogStorage: {
+			pointer: freshOg?.pointer ?? deriveOgLogPointer(memoryPointer, cycleId),
+			daRootHash: da.daRootHash,
+			daTxHash: da.daTxHash,
+		},
+	});
+	debugLog(cycleId, "og worker: DA trace patched", { vaultId });
+}
+
 export const ogCycleLogWorker = new Worker(
 	"og-cycle-log",
 	async (job) => {
@@ -66,44 +107,55 @@ export const ogCycleLogWorker = new Worker(
 
 		const cached = row.record as CycleLogRecord;
 		const existingOg = cached.ogStorage;
-		if (existingOg?.txHash?.trim() || existingOg?.rootHash?.trim()) {
-			debugLog(cycleId, "og worker: proof already stored, skip", { vaultId });
+		const kvComplete = Boolean(
+			existingOg?.txHash?.trim() || existingOg?.rootHash?.trim()
+		);
+		const daComplete = Boolean(existingOg?.daRootHash?.trim());
+		const wantsKv = !kvComplete;
+		const wantsDa = env.OG_DA_CYCLE_TRACE && !daComplete;
+
+		if (!(wantsKv || wantsDa)) {
+			debugLog(cycleId, "og worker: KV + DA already complete", { vaultId });
 			return;
 		}
 
-		const dynamicLogger = new OgLogger(
-			env.OG_INDEXER_RPC,
-			env.OG_KV_ENDPOINT,
-			memoryPointer,
-			env.OG_RPC_URL,
-			env.OG_PRIVATE_KEY,
-			env.OG_FLOW_CONTRACT
-		);
-
 		try {
-			const outcome = await dynamicLogger.write(
-				cycleRecordForOgKvWrite(record),
-				{
-					batchTimeoutMs: null,
-				}
-			);
+			if (wantsKv) {
+				const dynamicLogger = new OgLogger(
+					env.OG_INDEXER_RPC,
+					env.OG_KV_ENDPOINT,
+					memoryPointer,
+					env.OG_RPC_URL,
+					env.OG_PRIVATE_KEY,
+					env.OG_FLOW_CONTRACT
+				);
 
-			await patchVaultCycleLogOgStorage({
-				vaultId,
-				cycleId,
-				ogStorage: {
-					pointer: outcome.pointer,
-					...(outcome.rootHash ? { rootHash: outcome.rootHash } : {}),
-					...(outcome.txHash ? { txHash: outcome.txHash } : {}),
-					pending: false,
-				},
-			});
+				const outcome = await dynamicLogger.write(
+					cycleRecordForOgKvWrite(record),
+					{
+						batchTimeoutMs: null,
+					}
+				);
 
-			debugLog(cycleId, "og worker: proof patched", {
-				vaultId,
-				hasTx: Boolean(outcome.txHash),
-				hasRoot: Boolean(outcome.rootHash),
-			});
+				await patchVaultCycleLogOgStorage({
+					vaultId,
+					cycleId,
+					ogStorage: {
+						pointer: outcome.pointer,
+						...(outcome.rootHash ? { rootHash: outcome.rootHash } : {}),
+						...(outcome.txHash ? { txHash: outcome.txHash } : {}),
+						pending: false,
+					},
+				});
+
+				debugLog(cycleId, "og worker: KV proof patched", {
+					vaultId,
+					hasTx: Boolean(outcome.txHash),
+					hasRoot: Boolean(outcome.rootHash),
+				});
+			}
+
+			await tryUploadAndPatchDaTrace({ cycleId, memoryPointer, vaultId });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			debugLog(cycleId, "og worker: write threw", { vaultId, message });
