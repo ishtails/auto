@@ -10,13 +10,15 @@ This project links user-owned vaults to an agent loop. Integrations are intentio
 ## LLM + Decisioning
 
 - **Gemini**: generates strict JSON (`action`, `amountInWei`, and human-readable `reasoning`).
-- **Risk**: deterministic gate + optional second opinion from the risk path (`MOCK_RISK_AGENT=true` skips remote calls for local demos).
+- **Risk**: deterministic gate, then **0G Compute Router** audit of Gemini’s JSON (`MOCK_RISK_AGENT=true` skips the Router for local demos).
 
 ## Storage + Streaming
 
-- **0G Storage (KV)**: best-effort, verifiable log sink for `CycleLogRecord`.
-- **Postgres (Drizzle)**: app state + a local cache for cycle logs (reliable history even when 0G reads time out).
-- **SSE (Hono)**: authenticated stream of cycle history + updates to the web UI.
+**One sentence:** Postgres is the **queryable cache** for fast UI and SSE; **0G Storage (KV)** is the **canonical durable log** (stream per vault) with pointer + optional batch **txHash / rootHash** when the SDK completes.
+
+- **0G Storage (KV)**: append-only audit for each `CycleLogRecord`; judge/demo visibility via pointer and on-chain batch metadata.
+- **Postgres (Drizzle)**: mirrors cycle rows so history stays reliable when 0G KV reads are flaky or slow.
+- **SSE (Hono)**: pushes updates to the web UI from server state (fed by the Postgres cache).
 
 ## Identity / UX
 
@@ -37,11 +39,11 @@ This list is intentionally minimal; see `@auto/env` for the full set.
 
 ---
 
-## Risk agent (no AXL required)
+## Risk agent (deterministic + 0G Compute Router)
 
-The trade cycle combines **deterministic rails** with an optional **risk agent** decision path. For normal development and demos, set **`MOCK_RISK_AGENT=true`** so the server does not depend on extra P2P services.
+The trade cycle combines **deterministic rails** (`risk-gate`) with a **secondary audit** of Gemini’s JSON proposal via the **[0G Compute Router](https://docs.0g.ai/developer-hub/building-on-0g/compute-network/router/overview)** (`apps/server/src/integrations/og-compute-risk.ts`): OpenAI-compatible `/chat/completions`, structured JSON verdict (`APPROVE` / `REJECT`). For local dev without a Router API key, set **`MOCK_RISK_AGENT=true`** to skip that pass (approve).
 
-Optional **Gensyn AXL**-style transport still exists in the codebase for experiments (`apps/server/src/integrations/axl-transport.ts` and related env vars). It is **not** part of the documented product or deployment checklist—see [`plan.md`](./plan.md). Keep any cross-process payloads small; large artifacts belong in **0G** with pointers.
+When **`MOCK_RISK_AGENT=false`**, set **`OG_COMPUTE_ROUTER_API_KEY`** (from [pc.testnet.0g.ai](https://pc.testnet.0g.ai/) testnet or mainnet PC). Optional: **`OG_COMPUTE_ROUTER_URL`**, **`OG_COMPUTE_ROUTER_MODEL`**, **`OG_COMPUTE_ROUTER_JSON_MODE`** (disable if the model rejects JSON mode).
 
 ---
 
@@ -81,13 +83,12 @@ You will need some combination of:
 - `OG_KV_ENDPOINT` (if using `KvClient` directly)
 - `OG_KV_STREAM_ID` (KV stream to write pointers into)
 
-### Optional (experimental AXL transport)
+### 0G Compute Router (secondary risk)
 
-Only relevant if you turn off `MOCK_RISK_AGENT` and point the server at running peers—not needed for the checklist in [`plan.md`](./plan.md).
-
-- `AXL_TRADING_API_URL` (e.g. `http://127.0.0.1:9002`)
-- `AXL_RISK_API_URL` (e.g. `http://127.0.0.1:9012`)
-- `AXL_RISK_PEER_ID` / `AXL_TRADING_PEER_ID` (public keys)
+- `OG_COMPUTE_ROUTER_URL` — default testnet Router base (`…/v1`)
+- `OG_COMPUTE_ROUTER_API_KEY` — required when `MOCK_RISK_AGENT=false`
+- `OG_COMPUTE_ROUTER_MODEL` — e.g. `qwen/qwen-2.5-7b-instruct` (default; supports `response_format` per Router catalog)
+- `OG_COMPUTE_ROUTER_JSON_MODE` — `true` / `false` (JSON response format)
 
 ### Web
 
@@ -105,8 +106,8 @@ These are **implementation boundaries** to keep integrations clean and testable.
 - `apps/server/src/integrations/0g/*`
   - log writer (upload)
   - kv pointer writer (latest + index)
-- `apps/server/src/integrations/axl-transport.ts` (optional / experimental)
-  - only when exercising non-mock risk routing
+- `apps/server/src/integrations/og-compute-risk.ts`
+  - 0G Compute Router secondary risk pass when `MOCK_RISK_AGENT=false`
 - `apps/web/src/integrations/0g/*` OR `apps/web/src/app/api/*`
   - if browser bundling is painful, proxy reads through server routes
 - `apps/web/src/integrations/ens/*`
