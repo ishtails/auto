@@ -2,6 +2,10 @@
 
 This doc is for **longer-horizon ideas**. Active near-term tasks live in [`plan.md`](./plan.md) (architecture diagram, ENS integration, builder feedback drafts for 0G/ENS, demo video, README polish, deployment verification). **AXL is not on that path**—risk uses deterministic checks plus mock or optional wiring.
 
+## Submission / docs backlog (manual)
+
+- [ ] **README refresh** — root `README.md`, `docs/overview.md`, `docs/integrations.md`: judge-facing table (feature → 0G product KV / DA blob / Compute Router → `@0gfoundation/0g-ts-sdk` paths), verifier stage + dual Storage one-liner, env `OG_DA_CYCLE_TRACE`, link to [Storage SDK](https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk).
+
 ## The “Voice” (high impact)
 
 - **Telegram bot integration**
