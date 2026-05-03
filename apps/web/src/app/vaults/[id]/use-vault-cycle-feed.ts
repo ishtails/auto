@@ -62,14 +62,38 @@ export function useVaultCycleFeed({
 	}, [infinite.data]);
 
 	const cycles = useMemo(() => {
+		const ogQuality = (r: CycleLogRecord): number => {
+			const og = r.ogStorage;
+			if (!og) {
+				return 0;
+			}
+			let n = 0;
+			if (og.txHash?.trim()) {
+				n += 4;
+			}
+			if (og.rootHash?.trim()) {
+				n += 4;
+			}
+			if (!og.pending) {
+				n += 1;
+			}
+			if (og.lastError) {
+				n -= 2;
+			}
+			return n;
+		};
+		const pickRicher = (
+			a: CycleLogRecord,
+			b: CycleLogRecord
+		): CycleLogRecord => (ogQuality(b) > ogQuality(a) ? b : a);
+
 		const map = new Map<string, CycleLogRecord>();
-		for (const record of sseLive) {
+		for (const record of dbCycles) {
 			map.set(record.cycleId, record);
 		}
-		for (const record of dbCycles) {
-			if (!map.has(record.cycleId)) {
-				map.set(record.cycleId, record);
-			}
+		for (const record of sseLive) {
+			const existing = map.get(record.cycleId);
+			map.set(record.cycleId, existing ? pickRicher(existing, record) : record);
 		}
 		return [...map.values()].sort(
 			(a, b) =>

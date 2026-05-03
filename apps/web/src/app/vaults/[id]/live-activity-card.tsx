@@ -9,6 +9,7 @@ import {
 import { Activity } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { CycleLogEntry } from "./cycle-log-entry";
+import { DataPlaneStrip } from "./data-plane-strip";
 import { useVaultDetailContext } from "./vault-detail-context";
 
 export function LiveActivityCard() {
@@ -80,6 +81,7 @@ export function LiveActivityCard() {
 						trigger the agent.
 					</p>
 				</div>
+				<DataPlaneStrip />
 			</CardHeader>
 			<CardContent className="py-6">
 				{cycles.length === 0 ? (

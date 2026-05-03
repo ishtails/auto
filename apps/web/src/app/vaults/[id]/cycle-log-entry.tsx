@@ -1,9 +1,85 @@
 "use client";
 
 import type { CycleLogRecord } from "@auto/api/trade-types";
+import { env } from "@auto/env/web";
 import { ExternalLink } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
+
+const TRAILING_SLASH_RE = /\/$/;
+
+function OgDurableLogBlock({
+	og,
+}: {
+	og: NonNullable<CycleLogRecord["ogStorage"]>;
+}) {
+	const storageScanBase =
+		env.NEXT_PUBLIC_OG_STORAGE_EXPLORER_URL ??
+		"https://storagescan-galileo.0g.ai";
+	const txPrefix = env.NEXT_PUBLIC_OG_CHAIN_TX_URL_PREFIX?.replace(
+		TRAILING_SLASH_RE,
+		""
+	);
+
+	let txLine: ReactNode = null;
+	if (og.txHash) {
+		if (txPrefix) {
+			txLine = (
+				<a
+					className="inline-flex items-center gap-1 text-[#ffb59e] underline-offset-4 hover:underline"
+					href={`${txPrefix}/${og.txHash}`}
+					rel="noopener noreferrer"
+					target="_blank"
+				>
+					0G batch tx
+					<ExternalLink aria-hidden className="size-3 opacity-80" />
+				</a>
+			);
+		} else {
+			txLine = (
+				<span className="break-all font-mono text-[#a38c85]">
+					tx {og.txHash}
+				</span>
+			);
+		}
+	}
+
+	return (
+		<div>
+			<dt className="text-[#8cb4ff] text-[10px] uppercase tracking-[0.08em]">
+				Durable log (0G KV)
+			</dt>
+			<dd className="mt-1 space-y-1.5 text-[#c8d9f5] text-xs leading-relaxed">
+				<p className="break-all font-mono opacity-95">{og.pointer}</p>
+				{og.rootHash ? (
+					<p className="break-all font-mono text-[#a38c85]">
+						<span className="text-[#6b5d58]">root </span>
+						{og.rootHash}
+					</p>
+				) : null}
+				<div className="flex flex-wrap gap-x-3 gap-y-1 font-manrope">
+					{og.pending && !(og.txHash || og.rootHash) ? (
+						<span className="text-[#a38c85]">Proof syncing…</span>
+					) : null}
+					{og.lastError ? (
+						<span className="text-[#ff8a80]">0G log: {og.lastError}</span>
+					) : null}
+					{txLine}
+					<a
+						className="inline-flex items-center gap-1 text-[#8cb4ff] underline-offset-4 hover:underline"
+						href={storageScanBase}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						Storage Scan
+						<ExternalLink aria-hidden className="size-3 opacity-80" />
+					</a>
+				</div>
+			</dd>
+		</div>
+	);
+}
+
 import { useMemo, useState } from "react";
 import { formatEther } from "viem";
 
@@ -317,6 +393,7 @@ export function CycleLogEntry({
 						</dd>
 					</div>
 				) : null}
+				{entry.ogStorage ? <OgDurableLogBlock og={entry.ogStorage} /> : null}
 			</dl>
 
 			{presentation.riskDetail ? (

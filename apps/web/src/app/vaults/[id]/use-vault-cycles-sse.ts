@@ -125,8 +125,11 @@ export function useVaultCyclesSse({
 					signal: controller.signal,
 					onCycle: (record) => {
 						setPushes((prev) => {
-							if (prev.some((r) => r.cycleId === record.cycleId)) {
-								return prev;
+							const idx = prev.findIndex((r) => r.cycleId === record.cycleId);
+							if (idx >= 0) {
+								const next = [...prev];
+								next[idx] = record;
+								return next;
 							}
 							return [record, ...prev].slice(0, 50);
 						});
