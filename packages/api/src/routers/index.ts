@@ -16,7 +16,9 @@ import {
 	listVaultsOutputSchema,
 	prepareVaultDeploymentOutputSchema,
 	prepareVaultDeploymentSchema,
-	setVaultAutopilotSchema,
+	setVaultExecutorEnabledSchema,
+	setVaultScheduleOutputSchema,
+	setVaultScheduleSchema,
 } from "../vault-types";
 
 // NOTE: This router is a template that gets extended by the server.
@@ -98,8 +100,17 @@ export const appRouterTemplate = {
 			});
 		}),
 
-	setVaultAutopilot: authedProcedure
-		.input(setVaultAutopilotSchema)
+	setVaultExecutorEnabled: authedProcedure
+		.input(setVaultExecutorEnabledSchema)
+		.handler(() => {
+			throw new ORPCError("NOT_IMPLEMENTED", {
+				message: "Server must implement this procedure",
+			});
+		}),
+
+	setVaultSchedule: authedProcedure
+		.input(setVaultScheduleSchema)
+		.output(setVaultScheduleOutputSchema)
 		.handler(() => {
 			throw new ORPCError("NOT_IMPLEMENTED", {
 				message: "Server must implement this procedure",
