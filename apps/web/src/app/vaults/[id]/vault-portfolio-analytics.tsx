@@ -80,14 +80,14 @@ function portfolioChartPanel(input: {
 
 	if (isLoading) {
 		return (
-			<div className="mx-auto aspect-square max-h-[220px] min-h-[200px] w-full animate-pulse rounded-full bg-[#2a2a2a]" />
+			<div className="mx-auto aspect-square w-full max-w-[220px] animate-pulse rounded-full bg-[#2a2a2a]" />
 		);
 	}
 	if (totalWeight <= 0) {
 		return (
 			<div
 				aria-hidden
-				className="mx-auto aspect-square max-h-[220px] min-h-[200px] w-full rounded-full border-2 border-[#2a2a2a] border-dashed"
+				className="mx-auto aspect-square w-full max-w-[220px] rounded-full border-2 border-[#2a2a2a] border-dashed"
 			/>
 		);
 	}
