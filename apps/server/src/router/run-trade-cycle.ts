@@ -30,6 +30,27 @@ const deriveAmountInWei = (balanceWei: bigint, maxTradeBps: number): bigint => {
 	return derived > balanceWei ? balanceWei : derived;
 };
 
+const assertRequestedAmountWithinOnChainMaxTrade = (args: {
+	amountIn: bigint;
+	hubBalanceWei: bigint;
+	maxTradeBpsOnChain: number;
+}): void => {
+	const maxSpendWei = deriveAmountInWei(
+		args.hubBalanceWei,
+		args.maxTradeBpsOnChain
+	);
+	if (args.amountIn > maxSpendWei) {
+		throw new ORPCError("BAD_REQUEST", {
+			data: {
+				maxSpendWei: maxSpendWei.toString(),
+				maxTradeBpsOnChain: args.maxTradeBpsOnChain,
+				requestedAmountWei: args.amountIn.toString(),
+			},
+			message: `Trade amount exceeds on-chain max trade size (${args.maxTradeBpsOnChain} bps of WETH hub balance). Maximum allowed: ${maxSpendWei.toString()} wei.`,
+		});
+	}
+};
+
 const resolveCycleMode = ({
 	executorEnabled,
 	requestedDryRun,
@@ -264,11 +285,14 @@ export async function runTradeCycleInternal({
 		requestedDryRun: input.dryRun,
 	});
 
+	const chainState = new ChainStateClient(env.CHAIN_RPC_URL, vaultAddress);
+	const maxTradeBpsOnChain = await chainState.getMaxTradeSizeBps();
+
 	debugLog(cycleId, "resolved vault", {
 		vaultAddress,
 		tokenIn: profile.tokenIn,
 		tokenOut: profile.tokenOut,
-		maxTradeBps: profile.maxTradeBps,
+		maxTradeBpsOnChain,
 		defaultMaxSlippageBps: profile.maxSlippageBps,
 		memoryPointer: profile.memoryPointer,
 		executorEnabled,
@@ -286,9 +310,8 @@ export async function runTradeCycleInternal({
 		maxSlippageBps = profile.maxSlippageBps;
 	}
 	if (!amountInInput) {
-		const chainState = new ChainStateClient(env.CHAIN_RPC_URL, vaultAddress);
 		const balanceWei = await chainState.getVaultBalance(TOKENS.WETH.address);
-		const derived = deriveAmountInWei(balanceWei, profile.maxTradeBps);
+		const derived = deriveAmountInWei(balanceWei, maxTradeBpsOnChain);
 		debugLog(cycleId, "derived amountIn", {
 			balanceWei: balanceWei.toString(),
 			derivedWei: derived.toString(),
@@ -312,8 +335,15 @@ export async function runTradeCycleInternal({
 	});
 
 	const amountIn = BigInt(effectiveAmountIn);
+	const hubBalanceWei = await chainState.getVaultBalance(TOKENS.WETH.address);
+	assertRequestedAmountWithinOnChainMaxTrade({
+		amountIn,
+		hubBalanceWei,
+		maxTradeBpsOnChain,
+	});
+
 	const state = await context.services.getState(
-		{ amountIn, maxTradeBps: profile.maxTradeBps },
+		{ amountIn, maxTradeBps: maxTradeBpsOnChain },
 		vaultConfig
 	);
 	debugLog(cycleId, "state loaded", {
