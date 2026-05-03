@@ -117,7 +117,7 @@ function portfolioChartPanel(input: {
 									: "";
 							return (
 								<div
-									className="rounded-lg border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1.5 font-manrope text-[#e2e2e2] text-xs shadow-xl"
+									className="rounded-lg border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1.5 font-manrope text-[#e2e2e2] text-sm shadow-xl"
 									style={{ outline: "none" }}
 								>
 									<div className="flex items-center justify-between gap-4">
@@ -260,7 +260,7 @@ export function VaultPortfolioAnalytics({
 								}
 								const px = priceQuery.data[hub.key] as number;
 								return (
-									<p className="mt-1 font-manrope text-[#6b5d58] text-xs">
+									<p className="mt-1 font-manrope text-[#6b5d58] text-sm">
 										≈{" "}
 										{usdFormatter.format(
 											chartWeight(BigInt(hub.wei), hub.decimals) * px
@@ -317,7 +317,7 @@ export function VaultPortfolioAnalytics({
 															{formatTokenAmount(t.wei, t.decimals)} {t.symbol}
 														</span>
 														{estUsd == null || estUsd <= 0 ? null : (
-															<span className="block font-manrope text-[#6b5d58] text-xs">
+															<span className="block font-manrope text-[#6b5d58] text-sm">
 																≈ {usdFormatter.format(estUsd)}
 															</span>
 														)}
@@ -330,7 +330,7 @@ export function VaultPortfolioAnalytics({
 							</ul>
 						</div>
 
-						<p className="font-manrope text-[#55433d] text-xs">
+						<p className="font-manrope text-[#55433d] text-sm">
 							{isLoading
 								? "Loading balances…"
 								: `${nonZeroCount} of ${tokens.length} tracked tokens on-chain`}
@@ -366,7 +366,7 @@ export function VaultPortfolioAnalytics({
 							<ul className="w-full space-y-1.5">
 								{pieRows.map((row) => (
 									<li
-										className="flex items-center justify-between gap-2 font-manrope text-[#a38c85] text-xs"
+										className="flex items-center justify-between gap-2 font-manrope text-[#a38c85] text-sm"
 										key={row.key}
 									>
 										<span className="flex items-center gap-1.5">

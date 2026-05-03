@@ -88,7 +88,7 @@ export function UserDropdown() {
 				sideOffset={8}
 			>
 				<DropdownMenuGroup>
-					<DropdownMenuLabel className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.08em]">
+					<DropdownMenuLabel className="font-manrope text-[#a38c85] text-sm uppercase tracking-[0.08em]">
 						Wallet
 					</DropdownMenuLabel>
 
@@ -99,7 +99,7 @@ export function UserDropdown() {
 								href={baseScanAddressUrl(walletAddress)}
 							/>
 						) : (
-							<p className="font-manrope text-[#a38c85] text-xs">
+							<p className="font-manrope text-[#a38c85] text-sm">
 								Wallet address unavailable.
 							</p>
 						)}
@@ -107,7 +107,7 @@ export function UserDropdown() {
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator className="bg-[#2a2a2a]" />
 				<DropdownMenuGroup>
-					<DropdownMenuLabel className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.08em]">
+					<DropdownMenuLabel className="font-manrope text-[#a38c85] text-sm uppercase tracking-[0.08em]">
 						Balance
 					</DropdownMenuLabel>
 					<div className="flex items-center gap-2 px-2 py-2">

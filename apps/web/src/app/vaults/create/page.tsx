@@ -165,7 +165,7 @@ export default function CreateVaultPage() {
 									placeholder="Describe your trading strategy..."
 									value={prompt}
 								/>
-								<p className="text-[#a38c85] text-xs">
+								<p className="text-[#a38c85] text-sm">
 									This prompt guides the agent's decision-making process.
 								</p>
 							</div>

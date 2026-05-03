@@ -50,6 +50,7 @@ import { ManualCycleSheet } from "./manual-cycle-sheet";
 import { useVaultCycleFeed } from "./use-vault-cycle-feed";
 import { VaultDetailProvider } from "./vault-detail-context";
 import { VaultPortfolioAnalytics } from "./vault-portfolio-analytics";
+import { VaultScheduleSection } from "./vault-schedule-section";
 
 const baseScanAddressUrl = (address: string): string =>
 	`https://sepolia.basescan.org/address/${address}`;
@@ -160,10 +161,9 @@ export default function VaultDetailPage() {
 	});
 
 	const runTradeCycle = useMutation(orpc.runTradeCycle.mutationOptions());
-	const setVaultAutopilot = useMutation(
-		orpc.setVaultAutopilot.mutationOptions()
+	const setVaultExecutorEnabled = useMutation(
+		orpc.setVaultExecutorEnabled.mutationOptions()
 	);
-
 	const cycleFeed = useVaultCycleFeed({
 		vaultId,
 		enabled: Boolean(ready && authenticated),
@@ -381,19 +381,19 @@ export default function VaultDetailPage() {
 
 							<Button
 								className="border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
-								disabled={!vault || setVaultAutopilot.isPending}
+								disabled={!vault || setVaultExecutorEnabled.isPending}
 								onClick={() => {
 									if (!vault) {
 										return;
 									}
-									const next = !vault.autopilot;
-									setVaultAutopilot
-										.mutateAsync({ vaultId, autopilot: next })
+									const next = !vault.executorEnabled;
+									setVaultExecutorEnabled
+										.mutateAsync({ vaultId, executorEnabled: next })
 										.then(() => {
 											toast.success(
 												next
-													? "Autopilot enabled (agent can execute)"
-													: "Autopilot disabled (suggestions only)"
+													? "Executor on — agent may execute swaps"
+													: "Executor off — suggestions only"
 											);
 											return queryClient.invalidateQueries({
 												queryKey: orpc.listVaults.queryOptions().queryKey,
@@ -404,10 +404,10 @@ export default function VaultDetailPage() {
 										});
 								}}
 								type="button"
-								variant={vault?.autopilot ? "destructive" : "outline"}
+								variant={vault?.executorEnabled ? "destructive" : "outline"}
 							>
 								<ShieldCheck className="size-4" />
-								Autopilot: {vault?.autopilot ? "ON" : "OFF"}
+								Executor: {vault?.executorEnabled ? "ON" : "OFF"}
 							</Button>
 
 							<Button
@@ -445,7 +445,7 @@ export default function VaultDetailPage() {
 									sideOffset={8}
 								>
 									<DropdownMenuGroup>
-										<DropdownMenuLabel className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.08em]">
+										<DropdownMenuLabel className="font-manrope text-[#a38c85] text-sm uppercase tracking-[0.08em]">
 											Actions
 										</DropdownMenuLabel>
 										<DropdownMenuSeparator className="bg-[#2a2a2a]" />
@@ -465,6 +465,17 @@ export default function VaultDetailPage() {
 							</DropdownMenu>
 						</div>
 					</header>
+
+					{vault ? (
+						<VaultScheduleSection
+							vault={{
+								executorEnabled: vault.executorEnabled,
+								scheduleCadenceSeconds: vault.scheduleCadenceSeconds,
+								scheduleNextRunAt: vault.scheduleNextRunAt,
+							}}
+							vaultId={vaultId}
+						/>
+					) : null}
 
 					<Sheet
 						onOpenChange={(open) => {
@@ -533,7 +544,7 @@ export default function VaultDetailPage() {
 								</div>
 								<div className="grid gap-2">
 									<Label
-										className="font-manrope text-[#dbc1b9] text-xs"
+										className="font-manrope text-[#dbc1b9] text-sm"
 										htmlFor="fundEth"
 									>
 										Amount to deposit (ETH)

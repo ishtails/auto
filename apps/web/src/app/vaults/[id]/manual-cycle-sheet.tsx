@@ -47,7 +47,7 @@ export function ManualCycleSheet() {
 	);
 	const [lastError, setLastError] = useState<string | null>(null);
 	const [lastErrorReason, setLastErrorReason] = useState<string | null>(null);
-	const autopilotEnabled = Boolean(vault?.autopilot);
+	const executorEnabled = Boolean(vault?.executorEnabled);
 
 	const executionStatus = (() => {
 		if (!lastResult) {
@@ -56,7 +56,7 @@ export function ManualCycleSheet() {
 		if (dryRun) {
 			return "Paper trade (no execution)";
 		}
-		if (!autopilotEnabled) {
+		if (!executorEnabled) {
 			return "Suggest-only (no on-chain execution)";
 		}
 		if (lastResult.txHash) {
@@ -160,21 +160,23 @@ export function ManualCycleSheet() {
 						Manual run
 					</SheetTitle>
 					<SheetDescription className="font-manrope text-[#a38c85] text-sm">
-						Ask your agent for a fresh recommendation. If Autopilot is on, the
-						agent may also execute the trade on-chain.
+						Ask your agent for a fresh recommendation. If executor (live) mode
+						is on, the agent may execute the trade on-chain.
 					</SheetDescription>
 				</SheetHeader>
 
 				<div className="flex flex-col gap-6 px-4 py-6">
 					<div className="rounded-md border border-[#55433d] bg-[#131313] p-4">
 						<p className="font-manrope text-[#a38c85] text-[10px] uppercase tracking-[0.08em]">
-							Autopilot
+							Executor
 						</p>
 						<p className="mt-1 font-manrope text-[#f5f5f2] text-sm">
-							{vault?.autopilot ? "On — can execute" : "Off — suggestions only"}
+							{vault?.executorEnabled
+								? "On — can execute"
+								: "Off — suggestions only"}
 						</p>
-						<p className="mt-2 font-manrope text-[#a38c85] text-xs">
-							When Autopilot is off, this will never place a trade. You’ll just
+						<p className="mt-2 font-manrope text-[#a38c85] text-sm">
+							When executor is off, this will never place a trade. You’ll just
 							get the agent’s analysis.
 						</p>
 					</div>
@@ -188,7 +190,7 @@ export function ManualCycleSheet() {
 								? "…"
 								: `${formatEther(estimatedAmountInWei)} WETH`}
 						</p>
-						<p className="mt-2 font-manrope text-[#a38c85] text-xs">
+						<p className="mt-2 font-manrope text-[#a38c85] text-sm">
 							Based on your vault balance:{" "}
 							{balances.isLoading ? "…" : `${formatEther(wethWeiBalance)} WETH`}
 							.
@@ -197,7 +199,7 @@ export function ManualCycleSheet() {
 
 					<div className="grid gap-2">
 						<Label
-							className="font-manrope text-[#dbc1b9] text-xs"
+							className="font-manrope text-[#dbc1b9] text-sm"
 							htmlFor="tradeSizeBps"
 						>
 							How much to use (percent)
@@ -212,14 +214,14 @@ export function ManualCycleSheet() {
 							type="number"
 							value={tradeSizeBps}
 						/>
-						<p className="font-manrope text-[#a38c85] text-xs">
+						<p className="font-manrope text-[#a38c85] text-sm">
 							100 bps = 1%. Start small while testing.
 						</p>
 					</div>
 
 					<div className="grid gap-2">
 						<Label
-							className="font-manrope text-[#dbc1b9] text-xs"
+							className="font-manrope text-[#dbc1b9] text-sm"
 							htmlFor="maxSlippageBps"
 						>
 							Price slippage limit (bps)
@@ -236,11 +238,11 @@ export function ManualCycleSheet() {
 						/>
 					</div>
 
-					{autopilotEnabled && (
+					{executorEnabled && (
 						<div className="flex items-center justify-between">
 							<Toggle
 								aria-label="Toggle preview-only mode"
-								className="border border-[#55433d] bg-[#131313] font-manrope text-[#dbc1b9] text-xs data-[state=on]:bg-[#2a2a2a]"
+								className="border border-[#55433d] bg-[#131313] font-manrope text-[#dbc1b9] text-sm data-[state=on]:bg-[#2a2a2a]"
 								onPressedChange={setDryRun}
 								pressed={dryRun}
 								variant="outline"
@@ -275,7 +277,7 @@ export function ManualCycleSheet() {
 										{lastError}
 									</p>
 									{lastErrorReason ? (
-										<pre className="font-manrope text-[#a38c85] text-xs">
+										<pre className="font-manrope text-[#a38c85] text-sm">
 											{JSON.stringify(lastErrorReason, null, 2)}
 										</pre>
 									) : null}
@@ -330,7 +332,7 @@ export function ManualCycleSheet() {
 										</div>
 										<div className="flex flex-col gap-1">
 											<dt className="text-[#a38c85]">Execution ID</dt>
-											<dd className="break-all font-mono text-[#a38c85] text-xs">
+											<dd className="break-all font-mono text-[#a38c85] text-sm">
 												{lastResult.executionId ?? "—"}
 											</dd>
 										</div>
