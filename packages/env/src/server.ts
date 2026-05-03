@@ -69,6 +69,19 @@ export const env = createEnv({
 		PRIVY_JWT_VERIFICATION_KEY: z.string().optional(),
 		SERVER_DEPLOY_SECRET: z.string().min(1),
 		DEPLOYER_PRIVATE_KEY: z.string().min(1),
+
+		/**
+		 * In-process vault scheduler: poll DB and run due trade cycles.
+		 * Set false if you run a separate worker or want cycles manual-only.
+		 */
+		SCHEDULER_ENABLED: z
+			.enum(["true", "false"])
+			.default("true")
+			.transform((v) => v === "true"),
+		/** Minimum allowed schedule interval (seconds). Demo video: 60; prod: 900+. */
+		SCHEDULER_MIN_CADENCE_SECONDS: z.coerce.number().int().min(1).default(900),
+		/** How often the scheduler wakes to scan for due vaults (ms). */
+		SCHEDULER_TICK_MS: z.coerce.number().int().min(5000).default(60_000),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
