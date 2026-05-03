@@ -59,10 +59,10 @@ export default function Home() {
 				<div className="mx-auto grid w-full max-w-[90dvw] items-center gap-10 px-7 py-12 md:grid-cols-2 md:px-12 md:py-14 lg:px-16">
 					<div className="order-2 md:order-1">
 						<h1 className="max-w-xl font-newsreader text-5xl text-[#f5f5f2] italic leading-[1.05] md:text-6xl">
-							Orchestrate instant autonomous fund managers in a few clicks.
+							Orchestrate autonomous DeAI agents in a few clicks.
 						</h1>
 						<p className="mt-5 max-w-xl font-manrope text-[#dbc1b9] text-base leading-relaxed md:text-lg">
-							Launch multiple trading agents — each with its own rules, risk
+							Launch multiple DeAI agents — each with its own rules, risk
 							limits, and memory. Review suggestions, then let the best ones
 							execute on schedule.
 						</p>
