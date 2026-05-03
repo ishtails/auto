@@ -1,5 +1,6 @@
 "use client";
 
+import { USER_VAULT_ABI } from "@auto/contracts/factory-definitions";
 import { Button } from "@auto/ui/components/button";
 import { Input } from "@auto/ui/components/input";
 import { Label } from "@auto/ui/components/label";
@@ -13,16 +14,32 @@ import {
 } from "@auto/ui/components/sheet";
 import { Slider } from "@auto/ui/components/slider";
 import { Textarea } from "@auto/ui/components/textarea";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useWallets } from "@privy-io/react-auth";
+import {
+	type QueryClient,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { isAddress } from "viem";
-import { orpc } from "@/utils/orpc";
+import { type Address, createPublicClient, http, isAddress } from "viem";
+import { baseSepolia } from "viem/chains";
+import {
+	getPrivyWalletClient,
+	isPrivyEmbeddedWalletRpcNoiseError,
+	type PrivyWalletLike,
+} from "@/lib/privy-wallet-client";
+import {
+	readVaultMaxTradeSizeBps,
+	vaultMaxTradeBpsQueryKey,
+} from "@/lib/read-vault-max-trade-bps";
+import { client, orpc } from "@/utils/orpc";
 
 export interface EditAgentSheetProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
+	vaultAddress: string | null;
 	vaultId: string;
 }
 
@@ -30,12 +47,157 @@ function maxTradeBpsToRiskScore(maxTradeBps: number): number {
 	return Math.min(100, Math.max(0, Math.round((maxTradeBps / 10_000) * 100)));
 }
 
+function resolveEditAgentRiskBaselineBps(args: {
+	chainBps: number | undefined;
+	chainError: boolean;
+	chainPending: boolean;
+	profileMaxTradeBps: number | undefined;
+	vaultAddress: string | null;
+}): { baseline: number; ok: true } | { message: string; ok: false } {
+	if (args.vaultAddress && isAddress(args.vaultAddress)) {
+		if (args.chainPending) {
+			return {
+				message: "Reading max trade size from chain… try again in a moment.",
+				ok: false,
+			};
+		}
+		if (args.chainError || args.chainBps === undefined) {
+			return {
+				message:
+					"Could not read max trade size from your vault contract. Check RPC and try again.",
+				ok: false,
+			};
+		}
+		return { baseline: args.chainBps, ok: true };
+	}
+	const b = args.profileMaxTradeBps;
+	if (b === undefined) {
+		return { message: "Agent profile is still loading. Try again.", ok: false };
+	}
+	return { baseline: b, ok: true };
+}
+
+async function sendVaultSetRiskParamsTx(args: {
+	maxTradeBps: number;
+	vaultAddress: Address;
+	wallet: PrivyWalletLike & { address: string };
+}): Promise<void> {
+	const walletClient = await getPrivyWalletClient(args.wallet);
+	const hash = await walletClient.writeContract({
+		abi: USER_VAULT_ABI,
+		account: args.wallet.address as Address,
+		address: args.vaultAddress,
+		args: [args.maxTradeBps],
+		chain: baseSepolia,
+		functionName: "setRiskParams",
+	});
+	const publicClient = createPublicClient({
+		chain: baseSepolia,
+		transport: http(),
+	});
+	await publicClient.waitForTransactionReceipt({ hash });
+}
+
+interface PersistVaultAgentProfileArgs {
+	agentBasenameTrimmed: string;
+	geminiSystemPrompt: string;
+	maxSlippageBps: number;
+	nameTrimmed: string;
+	queryClient: QueryClient;
+	tokenIn: string;
+	tokenOut: string;
+	vaultAddressForInvalidation: string | null;
+	vaultId: string;
+}
+
+async function persistVaultAgentProfile(
+	args: PersistVaultAgentProfileArgs
+): Promise<void> {
+	await client.updateVaultAgentSettings({
+		geminiSystemPrompt: args.geminiSystemPrompt,
+		maxSlippageBps: args.maxSlippageBps,
+		name: args.nameTrimmed,
+		tokenIn: args.tokenIn,
+		tokenOut: args.tokenOut,
+		vaultId: args.vaultId,
+	});
+	await client.setVaultAgentBasename({
+		agentBasename:
+			args.agentBasenameTrimmed === "" ? null : args.agentBasenameTrimmed,
+		vaultId: args.vaultId,
+	});
+	await args.queryClient.invalidateQueries({
+		queryKey: orpc.listVaults.queryOptions().queryKey,
+	});
+	await args.queryClient.invalidateQueries({
+		queryKey: orpc.getVaultAgentProfile.queryOptions({
+			input: { vaultId: args.vaultId },
+		}).queryKey,
+	});
+	if (args.vaultAddressForInvalidation) {
+		await args.queryClient.invalidateQueries({
+			queryKey: vaultMaxTradeBpsQueryKey(args.vaultAddressForInvalidation),
+		});
+	}
+}
+
+async function runEditAgentSaveFlow(args: {
+	maxTradeBpsForChainTx: number;
+	onOpenChange: (open: boolean) => void;
+	persistArgs: PersistVaultAgentProfileArgs;
+	riskChanged: boolean;
+	setIsSaving: (saving: boolean) => void;
+	vaultAddress: string | null;
+	wallet: PrivyWalletLike | undefined;
+}): Promise<void> {
+	args.setIsSaving(true);
+	try {
+		if (args.riskChanged) {
+			const w = args.wallet as PrivyWalletLike & { address: string };
+			await sendVaultSetRiskParamsTx({
+				maxTradeBps: args.maxTradeBpsForChainTx,
+				vaultAddress: args.vaultAddress as Address,
+				wallet: w,
+			});
+		}
+
+		await persistVaultAgentProfile(args.persistArgs);
+		toast.success(
+			args.riskChanged
+				? "Max trade size updated on-chain; profile saved."
+				: "Agent settings updated."
+		);
+		args.onOpenChange(false);
+	} catch (error: unknown) {
+		if (args.riskChanged && isPrivyEmbeddedWalletRpcNoiseError(error)) {
+			try {
+				await persistVaultAgentProfile(args.persistArgs);
+				toast.success(
+					"Update may have submitted. Confirm setRiskParams in your wallet; refresh if other fields look stale."
+				);
+				args.onOpenChange(false);
+			} catch (persistErr: unknown) {
+				const message =
+					persistErr instanceof Error ? persistErr.message : String(persistErr);
+				toast.error(message);
+			}
+		} else {
+			const message = error instanceof Error ? error.message : String(error);
+			toast.error(message);
+		}
+	} finally {
+		args.setIsSaving(false);
+	}
+}
+
 export function EditAgentSheet({
 	onOpenChange,
 	open,
+	vaultAddress,
 	vaultId,
 }: EditAgentSheetProps) {
 	const queryClient = useQueryClient();
+	const { wallets } = useWallets();
 	const profileQuery = useQuery(
 		orpc.getVaultAgentProfile.queryOptions({
 			input: { vaultId },
@@ -43,12 +205,23 @@ export function EditAgentSheet({
 		})
 	);
 
+	const onChainRiskQuery = useQuery({
+		enabled:
+			open && Boolean(vaultAddress && isAddress(vaultAddress) && vaultId),
+		queryFn: () => readVaultMaxTradeSizeBps(vaultAddress as Address),
+		queryKey: vaultAddress
+			? vaultMaxTradeBpsQueryKey(vaultAddress)
+			: ["vault-max-trade-bps", "none"],
+	});
+
 	const [name, setName] = useState("");
 	const [prompt, setPrompt] = useState("");
 	const [riskScore, setRiskScore] = useState(15);
 	const [maxSlippageBps, setMaxSlippageBps] = useState(100);
 	const [tokenIn, setTokenIn] = useState("");
 	const [tokenOut, setTokenOut] = useState("");
+	const [agentBasename, setAgentBasename] = useState("");
+	const [isSaving, setIsSaving] = useState(false);
 
 	useEffect(() => {
 		const d = profileQuery.data;
@@ -57,34 +230,19 @@ export function EditAgentSheet({
 		}
 		setName(d.name);
 		setPrompt(d.geminiSystemPrompt);
-		setRiskScore(maxTradeBpsToRiskScore(d.maxTradeBps));
+		const chainBps = onChainRiskQuery.data;
+		setRiskScore(
+			maxTradeBpsToRiskScore(
+				typeof chainBps === "number" ? chainBps : d.maxTradeBps
+			)
+		);
 		setMaxSlippageBps(d.maxSlippageBps);
 		setTokenIn(d.tokenIn);
 		setTokenOut(d.tokenOut);
-	}, [open, profileQuery.data]);
+		setAgentBasename(d.agentBasename ?? "");
+	}, [open, onChainRiskQuery.data, profileQuery.data]);
 
-	const updateMutation = useMutation(
-		orpc.updateVaultAgentSettings.mutationOptions({
-			onError: (error: unknown) => {
-				const message = error instanceof Error ? error.message : String(error);
-				toast.error(message);
-			},
-			onSuccess: async () => {
-				toast.success("Agent settings updated");
-				await queryClient.invalidateQueries({
-					queryKey: orpc.listVaults.queryOptions().queryKey,
-				});
-				await queryClient.invalidateQueries({
-					queryKey: orpc.getVaultAgentProfile.queryOptions({
-						input: { vaultId },
-					}).queryKey,
-				});
-				onOpenChange(false);
-			},
-		})
-	);
-
-	const onSubmit = (e: React.FormEvent) => {
+	const onSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		const maxTradeBps = Math.max(1, Math.round((riskScore / 100) * 10_000));
 		const ti = tokenIn.trim();
@@ -93,19 +251,64 @@ export function EditAgentSheet({
 			toast.error("Token in and token out must be valid hex addresses.");
 			return;
 		}
-		updateMutation.mutate({
-			geminiSystemPrompt: prompt,
-			maxSlippageBps,
-			maxTradeBps,
-			name: name.trim(),
-			tokenIn: ti,
-			tokenOut: to,
-			vaultId,
+
+		const baselineRes = resolveEditAgentRiskBaselineBps({
+			chainBps: onChainRiskQuery.data,
+			chainError: onChainRiskQuery.isError,
+			chainPending: onChainRiskQuery.isPending,
+			profileMaxTradeBps: profileQuery.data?.maxTradeBps,
+			vaultAddress,
+		});
+		if (!baselineRes.ok) {
+			toast.error(baselineRes.message);
+			return;
+		}
+		const baselineBps = baselineRes.baseline;
+		const riskChanged = maxTradeBps !== baselineBps;
+
+		if (riskChanged) {
+			if (!(vaultAddress && isAddress(vaultAddress))) {
+				toast.error(
+					"Deploy the vault on-chain before changing max trade size — your wallet must call setRiskParams on the vault contract."
+				);
+				return;
+			}
+			const w = wallets[0] as PrivyWalletLike | undefined;
+			if (!w?.address) {
+				toast.error(
+					"Connect your wallet — only the vault owner can update max trade size on-chain."
+				);
+				return;
+			}
+		}
+
+		await runEditAgentSaveFlow({
+			maxTradeBpsForChainTx: maxTradeBps,
+			onOpenChange,
+			persistArgs: {
+				agentBasenameTrimmed: agentBasename.trim(),
+				geminiSystemPrompt: prompt,
+				maxSlippageBps,
+				nameTrimmed: name.trim(),
+				queryClient,
+				tokenIn: ti,
+				tokenOut: to,
+				vaultId,
+				vaultAddressForInvalidation: vaultAddress,
+			},
+			riskChanged,
+			setIsSaving,
+			vaultAddress,
+			wallet: wallets[0] as PrivyWalletLike | undefined,
 		});
 	};
 
 	const isLoadingProfile = open && profileQuery.isPending;
-	const showForm = open && profileQuery.data;
+	const chainRiskLoading =
+		open &&
+		Boolean(vaultAddress && isAddress(vaultAddress)) &&
+		onChainRiskQuery.isPending;
+	const showForm = open && profileQuery.data && !chainRiskLoading;
 
 	return (
 		<Sheet onOpenChange={onOpenChange} open={open}>
@@ -119,9 +322,14 @@ export function EditAgentSheet({
 						Edit agent
 					</SheetTitle>
 					<SheetDescription className="font-manrope text-[#a38c85] text-sm">
-						Update the agent name, model prompt, risk sizing, slippage, and
-						token pair. On-chain config is unchanged; this updates off-chain
-						profile used for cycles and UI.
+						Update the agent name, model prompt, slippage, token pair, and
+						optional Basename. Changing{" "}
+						<strong className="text-[#dbc1b9]">max trade size</strong> sends a
+						wallet transaction (
+						<code className="text-[#dbc1b9]">setRiskParams</code> on your vault)
+						— you pay gas. Other fields still sync to the server for cycles and
+						UI. Link a <code className="text-[#dbc1b9]">*.base.eth</code> name
+						that resolves to this vault; clearing removes the link.
 					</SheetDescription>
 				</SheetHeader>
 
@@ -166,9 +374,26 @@ export function EditAgentSheet({
 								<div className="grid gap-2">
 									<Label
 										className="font-manrope text-[#dbc1b9] text-sm"
+										htmlFor="edit-agent-basename"
+									>
+										Basename (optional)
+									</Label>
+									<Input
+										className="h-11 rounded-md border-[#55433d] bg-[#131313] font-manrope text-[#e2e2e2] text-sm"
+										id="edit-agent-basename"
+										onChange={(e) => setAgentBasename(e.target.value)}
+										placeholder="agent.example.base.eth"
+										spellCheck={false}
+										value={agentBasename}
+									/>
+								</div>
+
+								<div className="grid gap-2">
+									<Label
+										className="font-manrope text-[#dbc1b9] text-sm"
 										htmlFor="edit-agent-prompt"
 									>
-										Gemini system prompt
+										Agent Strategy
 									</Label>
 									<Textarea
 										className="min-h-[120px] rounded-md border-[#55433d] bg-[#131313] font-manrope text-[#e2e2e2] text-sm"
@@ -187,8 +412,11 @@ export function EditAgentSheet({
 											{riskScore}/100
 										</span>
 									</div>
+									<p className="font-manrope text-[#a38c85] text-xs leading-snug">
+										On-chain max drawdown cap per swap.
+									</p>
 									<Slider
-										className="[&_[role=slider]]:bg-[#d97757]"
+										className="**:[[role=slider]]:bg-[#d97757]"
 										max={100}
 										onValueChange={(value) =>
 											setRiskScore(
@@ -267,11 +495,11 @@ export function EditAgentSheet({
 							</Button>
 							<Button
 								className="bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
-								disabled={updateMutation.isPending}
+								disabled={isSaving}
 								form="edit-agent-form"
 								type="submit"
 							>
-								{updateMutation.isPending ? (
+								{isSaving ? (
 									<LoaderCircle className="size-4 animate-spin" />
 								) : null}
 								Save changes
