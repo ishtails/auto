@@ -5,7 +5,11 @@ import { ORPCError } from "@orpc/server";
 export const isDebugEnabled = (): boolean => process.env.DEBUG === "true";
 
 /** Integration name shown as `[Label] message` when `DEBUG=true` (grep-friendly). */
-export type IntegrationDebugLabel = "Uniswap" | "Keeper Hub" | "AXL" | "0G";
+export type IntegrationDebugLabel =
+	| "Uniswap"
+	| "Keeper Hub"
+	| "0G"
+	| "0G Compute";
 
 export const debugLog = (cycleId: string, message: string, data?: unknown) => {
 	if (!isDebugEnabled()) {

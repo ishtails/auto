@@ -2,8 +2,6 @@ import type { IntegrationServices } from "@auto/api/context";
 import type {
 	CycleLogRecord,
 	LlmTradingMemoryEntry,
-	RiskDecision,
-	TradeProposal,
 } from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
 import { base, baseSepolia } from "viem/chains";
@@ -16,15 +14,20 @@ import {
 	type TokenKey,
 } from "../config";
 import { db } from "../db";
-import { AxlTransport } from "../integrations/axl-transport";
 import { ChainStateClient } from "../integrations/chain-state";
 import { getDexScreenerMarketContext } from "../integrations/dexscreener";
 import { KeeperHubClient } from "../integrations/keeperhub-client";
 import { LlmAgent } from "../integrations/llm-agent";
+import {
+	pingOgComputeRouter,
+	verifyProposalWithOgComputeRouter,
+} from "../integrations/og-compute-risk";
+import { getLastOgKvTelemetry } from "../integrations/og-kv-telemetry";
 import { OgLogger } from "../integrations/og-logger";
 import { evaluateRisk } from "../integrations/risk-gate";
 import { UniswapBuilder } from "../integrations/uniswap-builder";
 import { encodeVaultExecuteTrade } from "../integrations/vault-executor";
+import { deriveOgLogPointer } from "../lib/og-log-pointer";
 import { integrationDebugLog } from "../router/debug";
 import { rawCycleLogToLlmTradingMemory } from "./trading-memory";
 
@@ -39,7 +42,6 @@ const chainIdToKeeperNetwork = (chainId: number): string => {
 };
 
 const MEMORY_READ_TIMEOUT_MS = 2500;
-const LOG_WRITE_TIMEOUT_MS = 8000;
 
 const autoVaultIdPrefix = "auto-vault-";
 const uuidLikeRegex =
@@ -154,11 +156,6 @@ const resolveUniswapTradeApiConfig = (
 
 export const createIntegrationServices = (): IntegrationServices => {
 	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
-	const axl = new AxlTransport(
-		env.AXL_TRADING_API_URL,
-		env.AXL_RISK_API_URL,
-		env.AXL_RISK_PEER_ID
-	);
 	const keeperhub = new KeeperHubClient(
 		env.KEEPERHUB_BASE_URL,
 		env.KEEPERHUB_API_KEY
@@ -325,17 +322,20 @@ export const createIntegrationServices = (): IntegrationServices => {
 				allowedTokens
 			);
 		},
-		sendToRiskAgent: async (proposal: TradeProposal) => {
+		sendToRiskAgent: (proposal, { cycleId, deterministicRisk }) => {
 			if (env.MOCK_RISK_AGENT) {
-				console.log("[RiskAgent] Mock mode enabled, skipping AXL P2P");
-				return {
+				console.log(
+					"[RiskAgent] Mock mode — skipping 0G Compute secondary risk pass"
+				);
+				return Promise.resolve({
 					decision: "APPROVE",
-					reason: "Mock risk agent approval",
-				} as RiskDecision;
+					reason: "Mock risk agent (0G Compute skipped)",
+				});
 			}
 
-			await axl.sendProposal(proposal);
-			return axl.receiveDecision(10_000);
+			return verifyProposalWithOgComputeRouter(proposal, deterministicRisk, {
+				cycleId,
+			});
 		},
 		evaluateRisk: (proposal, state, _vaultConfig) =>
 			Promise.resolve(
@@ -393,41 +393,48 @@ export const createIntegrationServices = (): IntegrationServices => {
 				value: encoded.value,
 			});
 		},
-		logCycle: (record, vaultConfig) => {
-			const streamId = vaultConfig.memoryPointer;
-			const dynamicLogger = new OgLogger(
-				env.OG_INDEXER_RPC,
-				env.OG_KV_ENDPOINT,
-				streamId,
-				env.OG_RPC_URL,
-				env.OG_PRIVATE_KEY,
-				env.OG_FLOW_CONTRACT
-			);
-			return Promise.race([
-				dynamicLogger.write(record),
-				new Promise<string>((resolve) => {
-					setTimeout(() => {
-						resolve(`${streamId}:${record.cycleId}`);
-					}, LOG_WRITE_TIMEOUT_MS);
-				}),
-			]);
-		},
+		logCycle: async (record, vaultConfig) => ({
+			logPointer: deriveOgLogPointer(vaultConfig.memoryPointer, record.cycleId),
+		}),
 		getDiagnostics: async () => {
 			const keeperhubReachable = await fetch(
 				`${env.KEEPERHUB_BASE_URL}/api/health`
 			)
 				.then((response) => response.ok)
 				.catch(() => false);
-			const axlReachable = await fetch(`${env.AXL_TRADING_API_URL}/topology`)
-				.then((response) => response.ok)
-				.catch(() => false);
+			const ogComputeRouterReachable = env.MOCK_RISK_AGENT
+				? true
+				: await pingOgComputeRouter();
 			const ogReachable = await logger.healthcheck();
+			const last = getLastOgKvTelemetry();
+
+			const architecture =
+				"Postgres is the queryable cache for fast UI and SSE; 0G Storage (KV) is the canonical durable audit log and pointer layer per vault stream.";
 
 			return {
-				ok: keeperhubReachable && axlReachable && ogReachable,
+				architecture,
+				dataPlane: {
+					postgres:
+						"Cycle rows and SSE history are served from Postgres so the app stays fast when 0G indexer/KV is slow or flaky.",
+					zeroG:
+						"Each cycle is written to 0G KV under the vault memory stream; batch txHash / rootHash prove the append when the SDK returns them.",
+				},
 				keeperhub: keeperhubReachable,
-				axl: axlReachable,
+				links: { storageExplorer: env.OG_STORAGE_EXPLORER_BASE },
 				og: ogReachable,
+				ogComputeRouter: ogComputeRouterReachable,
+				ok: keeperhubReachable && ogReachable && ogComputeRouterReachable,
+				zeroGStorage: {
+					kvReachable: ogReachable,
+					lastWrite: last
+						? {
+								isoTime: last.isoTime,
+								pointer: last.pointer,
+								rootHash: last.rootHash,
+								txHash: last.txHash,
+							}
+						: null,
+				},
 			};
 		},
 	};
