@@ -48,7 +48,7 @@ export function AddressWithCopy({
 
 	const AddressNode = href ? (
 		<a
-			className="font-mono text-[#dbc1b9] text-xs hover:text-[#f5f5f2]"
+			className="font-mono text-[#dbc1b9] text-sm hover:text-[#f5f5f2]"
 			href={href}
 			rel="noopener noreferrer"
 			target="_blank"
@@ -56,7 +56,7 @@ export function AddressWithCopy({
 			{display}
 		</a>
 	) : (
-		<span className="font-mono text-[#dbc1b9] text-xs">{display}</span>
+		<span className="font-mono text-[#dbc1b9] text-sm">{display}</span>
 	);
 
 	return (

@@ -1,15 +1,11 @@
 "use client";
 
 import { cn } from "@auto/ui/lib/utils";
-import type * as React from "react";
+import type { ComponentProps } from "react";
 
-function Label({
-	children,
-	className,
-	htmlFor,
-	...props
-}: React.ComponentProps<"label">) {
+function Label({ className, htmlFor, ...props }: ComponentProps<"label">) {
 	return (
+		// biome-ignore lint/a11y/noLabelWithoutControl: shadcn primitive; callers pass htmlFor to pair with controls
 		<label
 			className={cn(
 				"flex select-none items-center gap-2 font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50",
@@ -18,9 +14,7 @@ function Label({
 			data-slot="label"
 			htmlFor={htmlFor}
 			{...props}
-		>
-			{children}
-		</label>
+		/>
 	);
 }
 
