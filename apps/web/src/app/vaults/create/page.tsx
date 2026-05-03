@@ -156,7 +156,7 @@ export default function CreateVaultPage() {
 
 							<div className="grid gap-3">
 								<Label className="text-[#dbc1b9]" htmlFor="prompt">
-									Gemini System Prompt
+									Agent Strategy
 								</Label>
 								<Textarea
 									className="min-h-[120px] border-[#55433d] bg-[#131313] text-[#e2e2e2] focus:ring-[#d97757]"
