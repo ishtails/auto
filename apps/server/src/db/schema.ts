@@ -111,6 +111,11 @@ export const agentProfiles = pgTable("agent_profiles", {
 		.default(0),
 	/** Next scheduled trade cycle (UTC). Null when schedule is off. */
 	scheduleNextRunAt: timestamp("schedule_next_run_at", { withTimezone: true }),
+	/**
+	 * Optional Basename (`*.base.eth`) verified to forward-resolve on the vault chain
+	 * to `vaults.vault_address`.
+	 */
+	agentBasename: text("agent_basename"),
 });
 
 export const agentProfilesRelations = relations(agentProfiles, ({ one }) => ({
