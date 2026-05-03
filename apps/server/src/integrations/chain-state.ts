@@ -20,4 +20,15 @@ export class ChainStateClient {
 			args: [tokenAddress as `0x${string}`],
 		});
 	}
+
+	/** On-chain per-swap cap (`UserVault.maxTradeSizeBps`); source of truth for risk sizing. */
+	getMaxTradeSizeBps(): Promise<number> {
+		return this.client
+			.readContract({
+				address: this.vaultAddress,
+				abi: USER_VAULT_ABI,
+				functionName: "maxTradeSizeBps",
+			})
+			.then((bps) => Number(bps));
+	}
 }
