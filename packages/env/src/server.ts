@@ -49,15 +49,39 @@ export const env = createEnv({
 		KEEPERHUB_API_KEY: z.string().min(1),
 		KEEPERHUB_BASE_URL: z.url(),
 		KEEPERHUB_RELAYER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-		AXL_TRADING_API_URL: z.url(),
-		AXL_RISK_API_URL: z.url(),
-		AXL_RISK_PEER_ID: z.string().min(1),
+		/**
+		 * 0G Compute **Router** (OpenAI-compatible) — secondary risk pass that audits the Gemini proposal.
+		 * @see https://docs.0g.ai/developer-hub/building-on-0g/compute-network/router/overview
+		 */
+		OG_COMPUTE_ROUTER_URL: z
+			.string()
+			.url()
+			.default("https://router-api-testnet.integratenetwork.work/v1"),
+		/** Router API key from https://pc.testnet.0g.ai/ (testnet) or mainnet PC. */
+		OG_COMPUTE_ROUTER_API_KEY: z.string().min(1).optional(),
+		/** Model id on 0G Compute Router (catalog). Default: Qwen 7B instruct on 0G testnet. */
+		OG_COMPUTE_ROUTER_MODEL: z
+			.string()
+			.min(1)
+			.default("qwen/qwen-2.5-7b-instruct"),
+		/**
+		 * When true, send `response_format: json_object` (disable if your model rejects it).
+		 */
+		OG_COMPUTE_ROUTER_JSON_MODE: z
+			.enum(["true", "false"])
+			.default("true")
+			.transform((v) => v === "true"),
 		OG_RPC_URL: z.url(),
 		OG_INDEXER_RPC: z.url(),
 		OG_KV_ENDPOINT: z.url(),
 		OG_PRIVATE_KEY: z.string().min(1),
 		OG_KV_STREAM_ID: z.string().min(1),
 		OG_FLOW_CONTRACT: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+		/** Shown in `/diagnostics` — link to 0G Storage explorer (Galileo). */
+		OG_STORAGE_EXPLORER_BASE: z
+			.string()
+			.url()
+			.default("https://storagescan-galileo.0g.ai"),
 		NODE_ENV: z
 			.enum(["development", "production", "test"])
 			.default("development"),
