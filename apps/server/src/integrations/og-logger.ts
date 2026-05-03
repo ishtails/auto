@@ -8,6 +8,7 @@ import {
 } from "@0gfoundation/0g-ts-sdk";
 import type { CycleLogRecord } from "@auto/api/trade-types";
 import { ethers } from "ethers";
+import { recordOgKvTelemetry } from "./og-kv-telemetry";
 
 export class OgLogger {
 	private readonly indexer: Indexer;
@@ -46,11 +47,29 @@ export class OgLogger {
 		);
 	}
 
-	async write(record: CycleLogRecord): Promise<string> {
+	async write(
+		record: CycleLogRecord,
+		options?: {
+			/**
+			 * Max time to wait for the SDK batch to return tx/root.
+			 * `null` = wait with no race (for background jobs). Default 30s (HTTP-friendly).
+			 */
+			batchTimeoutMs: number | null;
+		}
+	): Promise<{ pointer: string; rootHash?: string; txHash?: string }> {
+		const batchTimeoutMs = options?.batchTimeoutMs ?? 30_000;
 		// Keep external pointer stable for display/debugging, but use short internal keys.
 		const pointer = `${this.streamId}:${record.cycleId}`;
 		const indexKey = `idx:${Date.now().toString().padStart(13, "0")}:${record.cycleId}`;
 		const recordKey = `c:${record.cycleId}`;
+
+		const emitTelemetry = (payload: {
+			pointer: string;
+			rootHash?: string;
+			txHash?: string;
+		}) => {
+			recordOgKvTelemetry(payload);
+		};
 
 		try {
 			const [nodes, selectErr] = await this.indexer.selectNodes(1);
@@ -58,7 +77,8 @@ export class OgLogger {
 				console.log(
 					`[0G] Node selection failed: ${selectErr ?? "no nodes"}, skipping log`
 				);
-				return pointer;
+				emitTelemetry({ pointer });
+				return { pointer };
 			}
 
 			const batcher = new Batcher(1, nodes, this.flowContract, this.rpcUrl);
@@ -109,32 +129,48 @@ export class OgLogger {
 					finalityRequired: false,
 				});
 
-				const timeoutMs = 30_000;
-				const [result, batchErr] = await Promise.race([
-					uploadPromise,
-					new Promise<[{ txHash: string; rootHash: string }, Error | null]>(
-						(resolve) => {
-							setTimeout(
-								() => resolve([{ txHash: "", rootHash: "" }, null]),
-								timeoutMs
-							);
-						}
-					),
-				]);
+				let result: { txHash: string; rootHash: string };
+				let batchErr: Error | null;
+
+				if (batchTimeoutMs === null) {
+					[result, batchErr] = await uploadPromise;
+				} else {
+					[result, batchErr] = await Promise.race([
+						uploadPromise,
+						new Promise<[{ txHash: string; rootHash: string }, Error | null]>(
+							(resolve) => {
+								setTimeout(
+									() => resolve([{ txHash: "", rootHash: "" }, null]),
+									batchTimeoutMs
+								);
+							}
+						),
+					]);
+				}
 
 				if (batchErr) {
 					if (isDebug) {
 						originalLog(`[0G] Batch execution failed: ${batchErr}`);
 					}
-					return pointer;
+					emitTelemetry({ pointer });
+					return { pointer };
 				}
+
+				const txHash = result.txHash?.trim();
+				const rootHash = result.rootHash?.trim();
+
+				emitTelemetry({
+					pointer,
+					...(rootHash ? { rootHash } : {}),
+					...(txHash ? { txHash } : {}),
+				});
 
 				if (isDebug) {
 					if (result.txHash) {
 						originalLog("[0G] upload submitted", {
 							pointer,
-							txHash: result.txHash,
 							rootHash: result.rootHash,
+							txHash: result.txHash,
 						});
 					} else {
 						originalLog("[0G] upload timed out waiting for node sync", {
@@ -143,7 +179,11 @@ export class OgLogger {
 					}
 				}
 
-				return pointer;
+				return {
+					pointer,
+					...(rootHash ? { rootHash } : {}),
+					...(txHash ? { txHash } : {}),
+				};
 			} finally {
 				console.log = originalLog;
 			}
@@ -151,7 +191,8 @@ export class OgLogger {
 			console.log(`[0G] Logging failed: ${error}`);
 		}
 
-		return pointer;
+		emitTelemetry({ pointer });
+		return { pointer };
 	}
 
 	async healthcheck(): Promise<boolean> {
