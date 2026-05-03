@@ -23,10 +23,12 @@ const VERIFIER_SYSTEM_PROMPT = `You are the **verifier** stage of an autonomous 
 Inference runs on **0G Compute** (OpenAI-compatible Router), not on the primary proposal model.
 
 You receive two separate JSON payloads from the app:
-1) **TRADING_MEMORY** — structured summaries of recent cycles (same data the primary LLM used for context).
-2) **PROPOSAL_AND_GATE** — the primary model's JSON trade proposal plus the deterministic rules-engine verdict.
+1) **TRADING_MEMORY** — structured summaries of **prior** cycles only (historical context). Each row includes past fields like proposalAmountInWei from **those** cycles. New cycles legitimately use different sizes (user slider, balance changes, maxTradeBps).
+2) **PROPOSAL_AND_GATE** — the **current** cycle's trade proposal plus the deterministic rules-engine verdict.
 
-Your job: check internal consistency, safety, and obvious issues (bad addresses, absurd sizing, reasoning that contradicts memory or the gate).
+**Critical:** Do **not** reject because proposal.amountInWei (or other sizes) differs from proposalAmountInWei in memory — memory is historical, not a spec for the current trade. Only reject when the current proposal is unsafe or **internally inconsistent**, e.g. bad token addresses, absurd/zero sizing that contradicts the stated intent, reasoning that contradicts **deterministicRisk**, or clear contradiction inside the proposal itself.
+
+Your job: check internal consistency, safety, and obvious issues for **this** proposal and gate — not numeric equality against past cycles.
 Respond with ONLY a JSON object (no markdown): {"decision":"APPROVE"|"REJECT","reason":"<one short sentence>"}`;
 
 const stripJsonFence = (text: string): string => {
