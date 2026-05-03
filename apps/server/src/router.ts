@@ -1,5 +1,6 @@
 import { authedProcedure, publicProcedure } from "@auto/api";
 import type { VaultConfig } from "@auto/api/context";
+import { assertScheduleCadenceAllowed } from "@auto/api/schedule-cadence";
 import {
 	getVaultCycleLogsInputSchema,
 	getVaultCycleLogsOutputSchema,
@@ -12,7 +13,9 @@ import {
 	getVaultDeploymentSchema,
 	listVaultsOutputSchema,
 	prepareVaultDeploymentSchema,
-	setVaultAutopilotSchema,
+	setVaultExecutorEnabledSchema,
+	setVaultScheduleOutputSchema,
+	setVaultScheduleSchema,
 } from "@auto/api/vault-types";
 import {
 	VAULT_FACTORY_ABI,
@@ -294,10 +297,13 @@ export const appRouter = {
 				status: vault.status,
 				riskScore: vault.agentProfile?.maxTradeBps ?? 50,
 				maxSlippageBps: vault.agentProfile?.maxSlippageBps ?? 100,
-				autopilot: vault.agentProfile?.autopilot ?? false,
+				executorEnabled: vault.agentProfile?.executorEnabled ?? false,
 				vaultAddress: vault.vaultAddress ?? null,
 				tokenIn: vault.agentProfile?.tokenIn ?? null,
 				tokenOut: vault.agentProfile?.tokenOut ?? null,
+				scheduleCadenceSeconds: vault.agentProfile?.scheduleCadenceSeconds ?? 0,
+				scheduleNextRunAt:
+					vault.agentProfile?.scheduleNextRunAt?.toISOString() ?? null,
 			}));
 		}),
 
@@ -374,12 +380,14 @@ export const appRouter = {
 					vaultId: vault.id,
 					name: input.name,
 					geminiSystemPrompt: input.geminiSystemPrompt,
-					autopilot: input.autopilot ?? false,
+					executorEnabled: input.executorEnabled ?? false,
 					maxTradeBps: input.maxTradeBps,
 					maxSlippageBps: input.maxSlippageBps,
 					tokenIn: input.tokenIn,
 					tokenOut: input.tokenOut,
 					memoryPointer: `auto-vault-${vault.id}`,
+					scheduleCadenceSeconds: 0,
+					scheduleNextRunAt: null,
 				})
 				.returning();
 
@@ -422,8 +430,8 @@ export const appRouter = {
 			};
 		}),
 
-	setVaultAutopilot: authedProcedure
-		.input(setVaultAutopilotSchema)
+	setVaultExecutorEnabled: authedProcedure
+		.input(setVaultExecutorEnabledSchema)
 		.handler(async ({ context, input }) => {
 			if (context.auth?.type !== "user") {
 				throw new ORPCError("UNAUTHORIZED", {
@@ -451,10 +459,100 @@ export const appRouter = {
 
 			await db
 				.update(agentProfiles)
-				.set({ autopilot: input.autopilot, updatedAt: new Date() })
+				.set(
+					input.executorEnabled
+						? { executorEnabled: true, updatedAt: new Date() }
+						: {
+								executorEnabled: false,
+								scheduleCadenceSeconds: 0,
+								scheduleNextRunAt: null,
+								updatedAt: new Date(),
+							}
+				)
 				.where(eq(agentProfiles.vaultId, vault.id));
 
 			return { ok: true };
+		}),
+
+	setVaultSchedule: authedProcedure
+		.input(setVaultScheduleSchema)
+		.output(setVaultScheduleOutputSchema)
+		.handler(async ({ context, input }) => {
+			if (context.auth?.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Requires user context",
+				});
+			}
+
+			try {
+				assertScheduleCadenceAllowed(
+					input.scheduleCadenceSeconds,
+					env.SCHEDULER_MIN_CADENCE_SECONDS
+				);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				throw new ORPCError("BAD_REQUEST", { message });
+			}
+
+			const user = await db.query.users.findFirst({
+				where: eq(users.privyUserId, context.auth.privyUserId),
+			});
+
+			if (!user) {
+				throw new ORPCError("NOT_FOUND", { message: "User not found" });
+			}
+
+			const vault = await db.query.vaults.findFirst({
+				where: and(eq(vaults.id, input.vaultId), eq(vaults.userId, user.id)),
+				with: { agentProfile: true },
+			});
+
+			if (!vault?.agentProfile) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Not authorized to update this vault",
+				});
+			}
+
+			if (
+				input.scheduleCadenceSeconds > 0 &&
+				!vault.agentProfile.executorEnabled
+			) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Scheduled autopilot requires executor (live) mode. Turn executor on first.",
+				});
+			}
+
+			let scheduleNextRunAt: Date | null = null;
+			if (input.scheduleCadenceSeconds > 0) {
+				if (input.firstRunAtUtc) {
+					const parsed = Date.parse(input.firstRunAtUtc);
+					if (Number.isNaN(parsed)) {
+						throw new ORPCError("BAD_REQUEST", {
+							message: "firstRunAtUtc must be a valid ISO 8601 datetime",
+						});
+					}
+					scheduleNextRunAt = new Date(Math.max(Date.now(), parsed));
+				} else {
+					scheduleNextRunAt = new Date(
+						Date.now() + input.scheduleCadenceSeconds * 1000
+					);
+				}
+			}
+
+			await db
+				.update(agentProfiles)
+				.set({
+					scheduleCadenceSeconds: input.scheduleCadenceSeconds,
+					scheduleNextRunAt,
+					updatedAt: new Date(),
+				})
+				.where(eq(agentProfiles.vaultId, vault.id));
+
+			return {
+				ok: true as const,
+				scheduleNextRunAt: scheduleNextRunAt?.toISOString() ?? null,
+			};
 		}),
 
 	getVaultDeployment: authedProcedure
