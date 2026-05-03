@@ -18,7 +18,7 @@ export function buildRuleBasedFallbackProposal({
 		tokenIn: state.tokenIn,
 		tokenOut: state.tokenOut,
 		reasoning: [
-			"LLM unavailable (e.g. rate limit or upstream error); autopilot falls back to HOLD only.",
+			"LLM unavailable (e.g. rate limit or upstream error); executor (live) mode falls back to HOLD only.",
 			"No automated trades without a model-generated proposal.",
 			`cycleId=${cycleId}`,
 		].join(" "),

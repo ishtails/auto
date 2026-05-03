@@ -23,13 +23,13 @@ const deriveAmountInWei = (balanceWei: bigint, maxTradeBps: number): bigint => {
 };
 
 const resolveCycleMode = ({
-	autopilotEnabled,
+	executorEnabled,
 	requestedDryRun,
 }: {
-	autopilotEnabled: boolean;
+	executorEnabled: boolean;
 	requestedDryRun: boolean | undefined;
 }): CycleLogRecord["mode"] => {
-	if (!autopilotEnabled) {
+	if (!executorEnabled) {
 		return "suggest";
 	}
 	if (requestedDryRun) {
@@ -43,14 +43,14 @@ const requireTradeProposal = async ({
 	state,
 	vaultConfig,
 	cycleId,
-	autopilotEnabled,
+	executorEnabled,
 	requestedDryRun,
 }: {
 	services: IntegrationServices;
 	state: Awaited<ReturnType<IntegrationServices["getState"]>>;
 	vaultConfig: VaultConfig;
 	cycleId: string;
-	autopilotEnabled: boolean;
+	executorEnabled: boolean;
 	requestedDryRun: boolean | undefined;
 }) => {
 	try {
@@ -59,10 +59,10 @@ const requireTradeProposal = async ({
 	} catch (error) {
 		const err = error instanceof Error ? error : new Error(String(error));
 		debugLog(cycleId, "llm failed", { message: err.message });
-		// If Autopilot is enabled and this isn't a user-requested preview run, fall
-		// back to a deterministic rule-based proposal instead of blocking execution.
-		if (autopilotEnabled && !requestedDryRun) {
-			const fallback = await buildRuleBasedFallbackProposal({
+		// If executor (live) mode is on and this isn't a user-requested preview run, fall
+		// back to HOLD instead of blocking the cycle entirely.
+		if (executorEnabled && !requestedDryRun) {
+			const fallback = buildRuleBasedFallbackProposal({
 				cycleId,
 				state,
 			});
@@ -118,7 +118,7 @@ const resolveExecutionPlan = ({
 	llmAvailable,
 	proposalAction,
 	riskDecision,
-	autopilotEnabled,
+	executorEnabled,
 	requestedDryRun,
 }: {
 	cycleId: string;
@@ -126,12 +126,12 @@ const resolveExecutionPlan = ({
 	llmAvailable: boolean;
 	proposalAction: CycleLogRecord["proposal"]["action"];
 	riskDecision: { decision: "APPROVE" | "REJECT" };
-	autopilotEnabled: boolean;
+	executorEnabled: boolean;
 	requestedDryRun: boolean | undefined;
 }) => {
 	if (!llmAvailable) {
 		debugLog(cycleId, "skipping execution: llm unavailable", {
-			autopilotEnabled,
+			executorEnabled,
 			requestedDryRun: requestedDryRun ?? null,
 		});
 	}
@@ -181,10 +181,10 @@ export async function runTradeCycleInternal({
 		input.vaultId
 	);
 
-	const autopilotEnabled = Boolean(profile.autopilot);
-	const effectiveDryRun = input.dryRun || !autopilotEnabled;
+	const executorEnabled = Boolean(profile.executorEnabled);
+	const effectiveDryRun = input.dryRun || !executorEnabled;
 	const mode = resolveCycleMode({
-		autopilotEnabled,
+		executorEnabled,
 		requestedDryRun: input.dryRun,
 	});
 
@@ -195,7 +195,7 @@ export async function runTradeCycleInternal({
 		maxTradeBps: profile.maxTradeBps,
 		defaultMaxSlippageBps: profile.maxSlippageBps,
 		memoryPointer: profile.memoryPointer,
-		autopilot: autopilotEnabled,
+		executorEnabled,
 	});
 
 	const vaultConfig: VaultConfig = {
@@ -251,7 +251,7 @@ export async function runTradeCycleInternal({
 		state,
 		vaultConfig,
 		cycleId,
-		autopilotEnabled,
+		executorEnabled,
 		requestedDryRun: input.dryRun,
 	});
 	debugLog(cycleId, "proposal", {
@@ -297,7 +297,7 @@ export async function runTradeCycleInternal({
 		llmAvailable,
 		proposalAction: proposal.action,
 		riskDecision,
-		autopilotEnabled,
+		executorEnabled,
 		requestedDryRun: input.dryRun,
 	});
 
