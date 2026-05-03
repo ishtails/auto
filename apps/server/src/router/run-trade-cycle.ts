@@ -11,6 +11,7 @@ import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
 import { TOKENS } from "../config";
 import { ChainStateClient } from "../integrations/chain-state";
+import { enqueueOgCycleLogJob } from "../services/og-cycle-log-queue";
 import { cacheCycleLogToDb } from "./cycle-log-cache";
 import { sanitizeCycleLogRecord } from "./cycle-log-sanitize";
 import {
@@ -87,7 +88,7 @@ const requireTradeProposal = async ({
 const buildUserFacingRiskDecision = (
 	proposal: CycleLogRecord["proposal"],
 	deterministicRisk: RiskDecision,
-	axlRisk: RiskDecision,
+	computeRisk: RiskDecision,
 	finalRisk: RiskDecision
 ): RiskDecision => {
 	if (finalRisk.decision === "REJECT") {
@@ -96,7 +97,7 @@ const buildUserFacingRiskDecision = (
 			reason:
 				deterministicRisk.decision === "REJECT"
 					? deterministicRisk.reason
-					: axlRisk.reason,
+					: computeRisk.reason,
 		};
 	}
 	if (proposal.action === "HOLD") {
@@ -113,7 +114,67 @@ const buildUserFacingRiskDecision = (
 	}
 	return {
 		decision: "APPROVE",
-		reason: axlRisk.reason,
+		reason: computeRisk.reason,
+	};
+};
+
+const resolveVaultRisk = async (args: {
+	cycleId: string;
+	proposal: CycleLogRecord["proposal"];
+	services: IntegrationServices;
+	state: Awaited<ReturnType<IntegrationServices["getState"]>>;
+	vaultConfig: VaultConfig;
+}): Promise<{
+	computeRisk: RiskDecision;
+	deterministicRisk: RiskDecision;
+	logRiskDecision: RiskDecision;
+	riskDecision: RiskDecision;
+}> => {
+	const { cycleId, proposal, services, state, vaultConfig } = args;
+	const deterministicRisk = await services.evaluateRisk(
+		proposal,
+		state,
+		vaultConfig
+	);
+	debugLog(cycleId, "deterministic risk", deterministicRisk);
+
+	const computeRisk: RiskDecision =
+		deterministicRisk.decision === "REJECT"
+			? {
+					decision: "REJECT",
+					reason: "0G Compute pass skipped (deterministic gate rejected)",
+				}
+			: await services.sendToRiskAgent(proposal, {
+					cycleId,
+					deterministicRisk,
+				});
+	debugLog(cycleId, "0g compute risk", computeRisk);
+
+	const riskDecision: RiskDecision =
+		deterministicRisk.decision === "APPROVE" &&
+		computeRisk.decision === "APPROVE"
+			? computeRisk
+			: {
+					decision: "REJECT",
+					reason:
+						deterministicRisk.decision === "REJECT"
+							? deterministicRisk.reason
+							: `deterministic=${deterministicRisk.decision}:${deterministicRisk.reason};0g_compute=${computeRisk.decision}:${computeRisk.reason}`,
+				};
+	debugLog(cycleId, "final risk decision", riskDecision);
+
+	const logRiskDecision = buildUserFacingRiskDecision(
+		proposal,
+		deterministicRisk,
+		computeRisk,
+		riskDecision
+	);
+
+	return {
+		computeRisk,
+		deterministicRisk,
+		logRiskDecision,
+		riskDecision,
 	};
 };
 
@@ -268,30 +329,14 @@ export async function runTradeCycleInternal({
 		llmAvailable,
 	});
 
-	const deterministicRisk = await context.services.evaluateRisk(
-		proposal,
-		state,
-		vaultConfig
-	);
-	debugLog(cycleId, "deterministic risk", deterministicRisk);
-	const axlRisk = await context.services.sendToRiskAgent(proposal);
-	debugLog(cycleId, "axl risk", axlRisk);
-
-	const riskDecision =
-		deterministicRisk.decision === "APPROVE" && axlRisk.decision === "APPROVE"
-			? axlRisk
-			: {
-					decision: "REJECT" as const,
-					reason: `deterministic=${deterministicRisk.decision}:${deterministicRisk.reason};axl=${axlRisk.decision}:${axlRisk.reason}`,
-				};
-	debugLog(cycleId, "final risk decision", riskDecision);
-
-	const logRiskDecision = buildUserFacingRiskDecision(
-		proposal,
-		deterministicRisk,
-		axlRisk,
-		riskDecision
-	);
+	const { computeRisk, deterministicRisk, logRiskDecision, riskDecision } =
+		await resolveVaultRisk({
+			cycleId,
+			proposal,
+			services: context.services,
+			state,
+			vaultConfig,
+		});
 
 	let execution: KeeperExecutionResult | null = null;
 	let route: CycleLogRecord["route"] = null;
@@ -363,22 +408,40 @@ export async function runTradeCycleInternal({
 		route,
 	});
 
-	const logPointer = await context.services.logCycle(cycleRecord, vaultConfig);
-	debugLog(cycleId, "cycle logged", { logPointer });
+	const { logPointer } = await context.services.logCycle(
+		cycleRecord,
+		vaultConfig
+	);
+	debugLog(cycleId, "cycle log pointer derived", { logPointer });
+
+	const recordForCache: CycleLogRecord = {
+		...cycleRecord,
+		ogStorage: {
+			pointer: logPointer,
+			pending: true,
+		},
+	};
 
 	await cacheCycleLogToDb({
-		vaultId: input.vaultId,
-		record: cycleRecord,
-		logPointer,
 		cycleId,
+		logPointer,
+		record: recordForCache,
+		vaultId: input.vaultId,
 	});
+
+	await enqueueOgCycleLogJob({
+		memoryPointer: vaultConfig.memoryPointer,
+		record: recordForCache,
+		vaultId: input.vaultId,
+	});
+	debugLog(cycleId, "0G write job enqueued", { logPointer });
 
 	let displayReason: string | null = null;
 	if (riskDecision.decision === "REJECT") {
 		displayReason =
 			deterministicRisk.decision === "REJECT"
 				? deterministicRisk.reason
-				: axlRisk.reason;
+				: computeRisk.reason;
 	} else if (proposal.action === "HOLD") {
 		displayReason = deterministicRisk.reason;
 	}
