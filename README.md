@@ -1,22 +1,14 @@
-# auto.eth
+# Auto
+
+<img width="1780" height="1071" alt="Screenshot 2026-05-03 at 8 17 53 PM" src="https://github.com/user-attachments/assets/e8fa1ace-bfbc-4d4b-8be1-97f78bbe2ace" />
+
+<br/>
 
 Auto deploys autonomous AI trading vaults on Base. Instead of trusting a centralized backend, every decision is cryptographically audited. An LLM proposes a trade, **0G Compute** verifies the risk parameters, **KeeperHub** executes the swap on-chain, and the entire thought process is permanently logged to **0G Storage** (**KV** + **DA**). Verifiable intent, zero black boxes.
 
 ---
 
-## Demo checklist (fill in for submissions)
-
-
-|                     |                                                                                   |
-| ------------------- | --------------------------------------------------------------------------------- |
-| **Live demo**       | *Your deployed URL*                                                               |
-| **Short video**     | *Link* — e.g. intro → run cycle → logs/diagnostics → activity row showing KV + DA |
-| **Example swap tx** | *Basescan link on Base Sepolia (or mainnet)*                                      |
-
-
----
-
-## What this is
+## What is Auto?
 
 auto is a small product slice: users sign in, manage vaults, and trigger trade cycles manually or on a schedule. Each cycle produces a structured record (proposal, risk outcome, optional execution). The web app stays fast because we cache that history in Postgres and stream updates over SSE; the durable audit trail is written to **0G Storage** in two complementary ways—**KV** for nimble stream state and **DA** blobs for a full JSON trace per cycle.
 
@@ -24,7 +16,7 @@ auto is a small product slice: users sign in, manage vaults, and trigger trade c
 
 ## Why we built it this way
 
-- Trust and demos: A dashboard that only reads Postgres is hard to defend in a decentralized stack. We wanted verifiable storage patterns (**KV** + file-style **DA**) and a named inference step on **0G Compute** so the story is easy to follow: *propose → check → verify → execute → prove on 0G*.
+- Trust: We wanted verifiable storage patterns (**KV** + file-style **DA**) and a named inference step on **0G Compute** so the story is easy to follow: *propose → check → verify → execute → prove on 0G*.
 - Speed vs durability: Blockchains and storage networks aren’t instant. Postgres + SSE give a responsive UI; background jobs finish KV/DA writes and patch the same row when proofs arrive so the activity card updates without blocking the HTTP response.
 - One codebase: Everything runs in a monorepo (Next.js + Hono) so judges and contributors can grep from the README table straight into the implementation.
 
@@ -32,7 +24,7 @@ auto is a small product slice: users sign in, manage vaults, and trigger trade c
 
 ## How it works (human version)
 
-1. Suggest — Gemini outputs a strict JSON trade proposal using recent trading memory (prior cycles), plus your vault rules.
+1. Suggest — LLM outputs a strict JSON trade proposal using recent trading memory (prior cycles), plus your vault rules.
 2. Gate — Deterministic risk checks run first (allowlists, sizing, and similar).
 3. Verify — If the gate passes, a **0G Compute** Router call acts as a verifier stage: it sees the same memory and the proposal in separate prompt blocks, and returns an approve/reject verdict.
 4. Execute (optional) — If policy allows and risk is green, the server builds **Uniswap** calldata and submits the swap via **KeeperHub** to the user’s vault on Base.
@@ -42,9 +34,13 @@ If you’re skimming for integrations, the next section maps each of those steps
 
 ---
 
-## Integration map (skim this)
+## Integration map
 
-Note: All builder feedback (**0G**, **Uniswap**, **KeeperHub**, **ENS / Basenames**) is in [`FEEDBACK.md`](./FEEDBACK.md).
+Note: All builder feedback (**0G**, **Uniswap**, **KeeperHub**, **E NS / Basenames**) is in [`FEEDBACK.md`](./FEEDBACK.md).
+
+<br/>
+<img width="1783" height="631" alt="Screenshot 2026-05-04 at 12 05 49 AM" src="https://github.com/user-attachments/assets/b53b7176-7955-43be-a959-a926f60c9c7f" />
+<br/>
 
 Each row is something you can run, click, or grep in the repo.
 
