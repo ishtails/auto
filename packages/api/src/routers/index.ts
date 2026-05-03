@@ -17,6 +17,8 @@ import {
 	listVaultsOutputSchema,
 	prepareVaultDeploymentOutputSchema,
 	prepareVaultDeploymentSchema,
+	setVaultAgentBasenameOutputSchema,
+	setVaultAgentBasenameSchema,
 	setVaultExecutorEnabledSchema,
 	setVaultScheduleOutputSchema,
 	setVaultScheduleSchema,
@@ -136,6 +138,15 @@ export const appRouterTemplate = {
 		.handler(() => {
 			throw new ORPCError("NOT_IMPLEMENTED", {
 				message: "Server must implement updateVaultAgentSettings",
+			});
+		}),
+
+	setVaultAgentBasename: authedProcedure
+		.input(setVaultAgentBasenameSchema)
+		.output(setVaultAgentBasenameOutputSchema)
+		.handler(() => {
+			throw new ORPCError("NOT_IMPLEMENTED", {
+				message: "Server must implement setVaultAgentBasename",
 			});
 		}),
 };

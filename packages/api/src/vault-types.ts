@@ -93,6 +93,7 @@ export const vaultSchema = z.object({
 	id: z.string().uuid(),
 	name: z.string(),
 	status: z.string(),
+	/** `UserVault.maxTradeSizeBps` from chain when vault is active; else DB / default. */
 	riskScore: z.number(),
 	/** Agent profile max slippage in basis points (1 bps = 0.01%). */
 	maxSlippageBps: z.number().int(),
@@ -105,6 +106,8 @@ export const vaultSchema = z.object({
 	scheduleCadenceSeconds: z.number().int(),
 	/** ISO 8601 UTC when the next scheduled cycle runs, or null if off. */
 	scheduleNextRunAt: z.string().nullable(),
+	/** Linked `*.base.eth` Basename when set (verified on-chain on the vault chain). */
+	agentBasename: z.string().nullable(),
 });
 
 export const listVaultsOutputSchema = z.array(vaultSchema);
@@ -138,17 +141,18 @@ export const getVaultAgentProfileInputSchema = z.object({
 export const vaultAgentProfileOutputSchema = z.object({
 	geminiSystemPrompt: z.string(),
 	maxSlippageBps: z.number().int(),
-	/** Same as `listVaults` `riskScore`: max trade size in basis points. */
+	/** `UserVault.maxTradeSizeBps` from chain when vault is active; else DB (pre-deploy). */
 	maxTradeBps: z.number().int(),
 	name: z.string(),
 	tokenIn: z.string(),
 	tokenOut: z.string(),
+	/** Normalized `*.base.eth` when linked; null if unset. */
+	agentBasename: z.string().nullable(),
 });
 
 export const updateVaultAgentSettingsSchema = z.object({
 	geminiSystemPrompt: z.string().min(1).max(24_000),
 	maxSlippageBps: z.number().int().min(1).max(2000),
-	maxTradeBps: z.number().int().min(1).max(10_000),
 	name: z.string().min(1).max(100),
 	tokenIn: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 	tokenOut: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
@@ -156,5 +160,15 @@ export const updateVaultAgentSettingsSchema = z.object({
 });
 
 export const updateVaultAgentSettingsOutputSchema = z.object({
+	ok: z.literal(true),
+});
+
+export const setVaultAgentBasenameSchema = z.object({
+	vaultId: z.string().uuid(),
+	/** Set to null (or empty string on client, coerced server-side) to clear. */
+	agentBasename: z.string().max(200).nullable(),
+});
+
+export const setVaultAgentBasenameOutputSchema = z.object({
 	ok: z.literal(true),
 });

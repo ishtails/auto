@@ -9,12 +9,13 @@ import type {
 
 export interface TradeCycleStateInput {
 	amountIn: bigint;
-	/** Vault policy cap (basis points); used for deterministic risk sizing. */
+	/** On-chain `UserVault.maxTradeSizeBps`; used for deterministic risk sizing. */
 	maxTradeBps: number;
 }
 
 export interface TradeCycleState {
 	hubTokenAddress: string;
+	/** Mirrors on-chain `maxTradeSizeBps` read at cycle start. */
 	maxTradeBps: number;
 	/** Lowercase testnet token address → vault balance wei (all whitelisted assets). */
 	portfolioBalancesWei: Record<string, string>;
