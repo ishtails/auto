@@ -1,74 +1,25 @@
 import type { IntegrationServices } from "@auto/api/context";
 import type { TradeProposal } from "@auto/api/trade-types";
-import { BASE_MAINNET_CHAIN_ID, TOKENS } from "../config";
-import { getDexScreenerMarketContext } from "../integrations/dexscreener";
 
-export async function buildRuleBasedFallbackProposal({
+/**
+ * When the LLM is unavailable (errors, rate limits, etc.) we only record a safe
+ * HOLD — no substitute rule engine that trades WETH/USDC from DexScreener heuristics.
+ */
+export function buildRuleBasedFallbackProposal({
 	cycleId,
 	state,
 }: {
 	cycleId: string;
 	state: Awaited<ReturnType<IntegrationServices["getState"]>>;
-}): Promise<TradeProposal> {
-	const market = await getDexScreenerMarketContext({
-		chainId: BASE_MAINNET_CHAIN_ID,
-		tokenIn: TOKENS.WETH.BASE_MAINNET_ADDRESS,
-		tokenOut: TOKENS.USDC.BASE_MAINNET_ADDRESS,
-	}).catch(() => null);
-
-	// Conservative defaults: only trade when signals are strong and liquidity exists.
-	const change1h = market?.priceChange1hPct ?? null;
-	const ratio1h = market?.buySellRatio1h ?? null;
-	const liquidityUsd = market?.liquidityUsd ?? null;
-	const volume24h = market?.volume24h ?? null;
-
-	const hasLiquidity =
-		liquidityUsd !== null &&
-		Number.isFinite(liquidityUsd) &&
-		liquidityUsd >= 5000;
-	const hasVolume =
-		volume24h !== null && Number.isFinite(volume24h) && volume24h >= 5000;
-
-	let action: TradeProposal["action"] = "HOLD";
-	if (
-		change1h !== null &&
-		ratio1h !== null &&
-		hasLiquidity &&
-		hasVolume &&
-		change1h >= 2 &&
-		ratio1h >= 1.2
-	) {
-		action = "BUY";
-	} else if (
-		change1h !== null &&
-		ratio1h !== null &&
-		hasLiquidity &&
-		hasVolume &&
-		change1h <= -2 &&
-		ratio1h <= 0.8
-	) {
-		action = "SELL";
-	}
-
-	const amountInWei =
-		action === "HOLD" ? "0" : state.requestedAmountInWei.toString();
-
-	const marketSummary = market
-		? `DexScreener(chain=${market.chain}, priceUsd=${market.priceUsd ?? "n/a"}, change1hPct=${market.priceChange1hPct ?? "n/a"}, buySellRatio1h=${market.buySellRatio1h ?? "n/a"}, liquidityUsd=${market.liquidityUsd ?? "n/a"}, volume24h=${market.volume24h ?? "n/a"})`
-		: "DexScreener unavailable";
-
+}): TradeProposal {
 	return {
-		action,
-		tokenIn: TOKENS.WETH.address,
-		tokenOut: TOKENS.USDC.address,
-		amountInWei,
+		action: "HOLD",
+		amountInWei: "0",
+		tokenIn: state.tokenIn,
+		tokenOut: state.tokenOut,
 		reasoning: [
-			"Rule-based fallback activated because the LLM was unavailable.",
-			"LLM not available.",
-			`Signal: ${marketSummary}`,
-			action === "HOLD"
-				? "Decision: HOLD to protect capital until signals are strong."
-				: `Decision: ${action} based on short-term momentum + volume imbalance with sufficient liquidity.`,
+			"LLM unavailable (e.g. rate limit or upstream error); autopilot falls back to HOLD only.",
+			"No automated trades without a model-generated proposal.",
 			`cycleId=${cycleId}`,
 		].join(" "),
 	};

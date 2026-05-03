@@ -16,7 +16,7 @@ import {
 } from "@auto/ui/components/sheet";
 import { Toggle } from "@auto/ui/components/toggle";
 import { useQueryClient } from "@tanstack/react-query";
-import { Circle } from "lucide-react";
+import { Circle, ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatEther } from "viem";
@@ -307,27 +307,31 @@ export function ManualCycleSheet() {
 												{lastResult.reason ?? "—"}
 											</dd>
 										</div>
-										<div className="flex flex-col gap-1">
-											<dt className="text-[#a38c85]">Execution ID</dt>
-											<dd className="break-all font-mono text-[#a38c85] text-xs">
-												{lastResult.executionId ?? "—"}
-											</dd>
-										</div>
 										<div className="flex justify-between gap-4">
-											<dt className="text-[#a38c85]">Tx hash</dt>
+											<dt className="text-[#a38c85]">View Tx</dt>
 											<dd className="text-right">
 												{lastResult.txHash ? (
 													<a
-														className="text-[#ffb59e] underline-offset-4 hover:underline"
+														className="flex items-center gap-1 text-[#ffb59e] underline-offset-4 hover:underline"
 														href={baseScanTxUrl(lastResult.txHash)}
 														rel="noopener noreferrer"
 														target="_blank"
 													>
-														View
+														BaseScan{" "}
+														<ExternalLink
+															aria-hidden
+															className="size-3.5 opacity-80"
+														/>
 													</a>
 												) : (
 													<span className="text-[#a38c85]">—</span>
 												)}
+											</dd>
+										</div>
+										<div className="flex flex-col gap-1">
+											<dt className="text-[#a38c85]">Execution ID</dt>
+											<dd className="break-all font-mono text-[#a38c85] text-xs">
+												{lastResult.executionId ?? "—"}
 											</dd>
 										</div>
 									</dl>
