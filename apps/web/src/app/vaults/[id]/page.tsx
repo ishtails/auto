@@ -44,6 +44,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { formatEther, isAddress, parseEther } from "viem";
 import { baseSepolia } from "viem/chains";
+import { useVaultAddressDisplayName } from "@/hooks/use-vault-address-display-name";
 import {
 	getPrivyWalletClient,
 	isPrivyEmbeddedWalletRpcNoiseError,
@@ -189,6 +190,8 @@ export default function VaultDetailPage() {
 
 	const vaults = useQuery(orpc.listVaults.queryOptions());
 	const vault = vaults.data?.find((v) => v.id === vaultId) ?? null;
+
+	const vaultAddressDisplayName = useVaultAddressDisplayName(vault);
 
 	const balances = useQuery(
 		orpc.getVaultBalancesByVaultId.queryOptions({
@@ -420,6 +423,7 @@ export default function VaultDetailPage() {
 									<AddressWithCopy
 										address={vault.vaultAddress}
 										className="justify-start"
+										displayName={vaultAddressDisplayName}
 										href={baseScanAddressUrl(vault.vaultAddress)}
 									/>
 								) : (

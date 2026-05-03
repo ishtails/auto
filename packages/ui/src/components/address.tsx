@@ -7,6 +7,10 @@ import { useCallback, useMemo, useState } from "react";
 interface AddressWithCopyProps {
 	address: string;
 	className?: string;
+	/**
+	 * Human-readable chain name (e.g. Basename) shown above the hex address when set.
+	 */
+	displayName?: string | null;
 	href?: string;
 	/** Defaults to 6 / 4. */
 	trim?: { prefix: number; suffix: number };
@@ -24,6 +28,7 @@ const trimAddress = (
 export function AddressWithCopy({
 	address,
 	className,
+	displayName,
 	href,
 	trim = { prefix: 6, suffix: 4 },
 }: AddressWithCopyProps) {
@@ -60,24 +65,31 @@ export function AddressWithCopy({
 	);
 
 	return (
-		<div className={cn("inline-flex items-center gap-2", className)}>
-			{AddressNode}
-			<button
-				aria-label="Copy address"
-				className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#55433d] bg-[#131313] text-[#dbc1b9] transition hover:bg-[#2a2a2a] hover:text-[#f5f5f2]"
-				onClick={() => {
-					copy().catch(() => {
-						/* best effort */
-					});
-				}}
-				type="button"
-			>
-				{copied ? (
-					<CheckIcon className="h-3.5 w-3.5" />
-				) : (
-					<CopyIcon className="h-3.5 w-3.5" />
-				)}
-			</button>
+		<div className={cn("inline-flex flex-col items-start gap-1", className)}>
+			{displayName ? (
+				<span className="font-manrope text-[#dbc1b9] text-sm">
+					{displayName}
+				</span>
+			) : null}
+			<div className="inline-flex items-center gap-2">
+				{AddressNode}
+				<button
+					aria-label="Copy address"
+					className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#55433d] bg-[#131313] text-[#dbc1b9] transition hover:bg-[#2a2a2a] hover:text-[#f5f5f2]"
+					onClick={() => {
+						copy().catch(() => {
+							/* best effort */
+						});
+					}}
+					type="button"
+				>
+					{copied ? (
+						<CheckIcon className="h-3.5 w-3.5" />
+					) : (
+						<CopyIcon className="h-3.5 w-3.5" />
+					)}
+				</button>
+			</div>
 		</div>
 	);
 }

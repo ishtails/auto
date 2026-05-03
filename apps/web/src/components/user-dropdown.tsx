@@ -111,15 +111,6 @@ export function UserDropdown() {
 						<DropdownMenuLabel className="font-manrope text-[#a38c85] text-sm uppercase tracking-[0.08em]">
 							Wallet
 						</DropdownMenuLabel>
-						{operatorEns.isSuccess && !operatorEns.data ? (
-							<p className="px-2 font-manrope text-[#a38c85] text-[10px] leading-snug">
-								Your .eth won’t show until it’s set as your ENS{" "}
-								<strong className="font-medium text-[#dbc1b9]">
-									primary name
-								</strong>{" "}
-								for this wallet on Ethereum — owning the name isn’t enough.
-							</p>
-						) : null}
 
 						<div className="space-y-3 px-2 py-2">
 							{walletAddress ? (

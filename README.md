@@ -85,6 +85,12 @@ ENS integration is **read-only** and **best-effort**: we never block vault flows
   - **Trade cycles** — Each new cycle may include an optional `operatorEns` snapshot (`primaryName`, `avatarUrl`) on the persisted `CycleLogRecord` for audit/UI; older rows omit it.
 - **Optional env:** `ETH_MAINNET_RPC_URL` (server) and `NEXT_PUBLIC_ETH_MAINNET_RPC_URL` (web) override the default public mainnet RPC; see `[packages/env](./packages/env)` and `[apps/server/.env.example](./apps/server/.env.example)`.
 
+### Basenames (`*.base.eth`) and vault agents
+
+We **verify** optional **`*.base.eth`** names against the **vault contract address** (forward resolution on Base) and store a normalized link in the agent profile. **Reverse** display in the UI relies on a **primary** name for that address (ENSIP-19 via mainnet resolver + chain `coinType`); **transferring** a name to the vault does **not** by itself set **primary**, and the Basenames flows we used did not give us a clear way to set **primary for a smart contract** the way ENS manager does for EOAs. We therefore often fall back to the **DB-linked** name after a successful save, not automatic on-chain reverse.
+
+For **honest partner-facing notes** (use case, what we tried, economics of staying on Base vs L1, wishlist for ENS/Base), see **[`docs/builder-feedback.md`](./docs/builder-feedback.md)** — section **ENS & Basenames — builder feedback**.
+
 ---
 
 ## The Execution Pipeline

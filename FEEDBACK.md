@@ -4,7 +4,7 @@ Submitted for **Uniswap Foundation** and **KeeperHub** builder feedback. Each se
 
 ---
 
-# Uniswap Developer Platform — builder feedback
+# Uniswap Developer Platform
 
 Focus: **honest friction** from our real integration. Outline matches **KeeperHub** below (**context → pain points → surprises → gentle suggestions → code pointers**). We’re genuinely thankful for both stacks—a short “what helped” note sits at the end of section 1.
 
@@ -86,7 +86,7 @@ Thank you for the Developer Platform work so far; the friction above is offered 
 
 ---
 
-# KeeperHub — builder feedback
+# KeeperHub
 
 Thank you for building an execution layer we could actually lean on for demos—the notes below are **observations** from shipping, not a punch list.
 
@@ -101,10 +101,10 @@ We use KeeperHub as the **execution layer** for an autonomous portfolio agent:
 | **Routing**    | Uniswap Trading API or Sepolia pool fallback → calldata for `UserVault.executeSwap`.                                                                                                                                                      |
 | **Encoding**   | `encodeVaultExecuteTrade` (`apps/server/src/integrations/vault-executor.ts`) builds `**executeSwap`** args (nested router calldata, deadlines, minOut).                                                                                   |
 | **Muscle**     | KeeperHub — `POST /api/execute/contract-call` → poll `GET /api/execute/:id/status` (`apps/server/src/integrations/keeperhub-client.ts`).                                                                                                  |
-| **Settlement** | `**UserVault.sol`** — only the vault’s `**authorizedAgent**` may call `**executeSwap**`; we bind that to `**KEEPERHUB_RELAYER_ADDRESS**` at deploy time so KeeperHub’s relayer matches on-chain ACL (see vault factory / deploy scripts). |
+| **Settlement** | `**UserVault.sol`** — only the vault’s `**authorizedAgent`** may call `**executeSwap**`; we bind that to `**KEEPERHUB_RELAYER_ADDRESS**` at deploy time so KeeperHub’s relayer matches on-chain ACL (see vault factory / deploy scripts). |
 
 
-**Important nuance:** our backend does **not** EIP-712-sign the final chain tx — we submit ABI + JSON `**functionArgs`** and KeeperHub broadcasts (relayer pays gas). Misalignment between dashboard relayer, env relayer, and vault `**authorizedAgent**` tripped us once—**a tiny “three corners must match” diagram** in docs would be a kindness to the next integrator.
+**Important nuance:** our backend does **not** EIP-712-sign the final chain tx — we submit ABI + JSON `**functionArgs`** and KeeperHub broadcasts (relayer pays gas). Misalignment between dashboard relayer, env relayer, and vault `**authorizedAgent`** tripped us once—**a tiny “three corners must match” diagram** in docs would be a kindness to the next integrator.
 
 **Execution proof (Base Sepolia):**
 
@@ -115,7 +115,7 @@ We use KeeperHub as the **execution layer** for an autonomous portfolio agent:
 
 - **502 Bad Gateway (execute)** — During Base Sepolia demos we saw **transient 502s** on `POST .../contract-call`. From our client we mostly saw **HTTP status** (`keeperhub execute failed: 502`) without much to distinguish **gateway blip** vs **upstream** vs **payload**—so we fell back to **retries** and crossed fingers. Any extra signal you ever add here would make sleep easier (we know infra is hard).
 - **Thin HTTP errors on our side** — On non-OK responses we currently collapse to `keeperhub execute failed: ${status}` and **don’t retain bodies**—that’s on us too; richer responses would only help if we plumbed them through.
-- **Opaque on-chain failures** — When status comes back **failed**, we only see whatever fits in `**payload.error`**. Deep `**UserVault**` → router reverts are hard to interpret without **decoded reasons**—same rough edge in the **dashboard** (see section 3).
+- **Opaque on-chain failures** — When status comes back **failed**, we only see whatever fits in `**payload.error`**. Deep `**UserVault`** → router reverts are hard to interpret without **decoded reasons**—same rough edge in the **dashboard** (see section 3).
 - **Polling** — We **poll** status on a fixed interval (`keeperhub-client.ts`). It works; **event-driven** delivery someday would be lovely for long-running agents—not urgent, just a direction we’d celebrate if it ever fits your product story.
 
 ## 3. Dashboard & onboarding
