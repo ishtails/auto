@@ -10,6 +10,7 @@ import { appRouter } from "./router";
 import { registerCycleStreamRoutes } from "./router/cycle-stream";
 import { createIntegrationServices } from "./services/trade-cycle-services";
 import "./services/deploy-queue";
+import "./services/og-cycle-log-queue";
 import { startupSync } from "./services/startup-sync";
 import { startVaultScheduler } from "./services/vault-scheduler";
 
