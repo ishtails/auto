@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { and, eq } from "drizzle-orm";
-import { isAddress } from "viem";
+import { type Address, isAddress } from "viem";
 import { db } from "../db";
 import { users, vaults } from "../db/schema";
 
@@ -42,5 +42,11 @@ export async function getOwnedActiveVault(
 	}
 
 	const vaultAddress = vault.vaultAddress as `0x${string}`;
-	return { vaultAddress, profile, vaultDbId: vault.id };
+	const operatorWalletAddress: Address | null = isAddress(
+		user.primaryWalletAddress
+	)
+		? (user.primaryWalletAddress as Address)
+		: null;
+
+	return { operatorWalletAddress, profile, vaultAddress, vaultDbId: vault.id };
 }

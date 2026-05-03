@@ -57,6 +57,7 @@ Each row is something you can run, click, or grep in the repo.
 | **DA** full trace blob     | [Storage SDK — upload](https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk) (`MemData`)   | Same card: DA trace root and DA blob tx (optional: `OG_DA_CYCLE_TRACE=false` to skip).                          | `[og-cycle-da-blob.ts](./apps/server/src/integrations/og-cycle-da-blob.ts)`                                                                                   |
 | Live UI                    | Postgres + SSE                                                                                    | Scroll activity; proofs can appear shortly after the cycle returns 200.                                         | `[cycle-stream.ts](./apps/server/src/router/cycle-stream.ts)` · `[use-vault-cycle-feed.ts](./apps/web/src/app/vaults/[id]/use-vault-cycle-feed.ts)`           |
 | Swaps                      | Base + **KeeperHub** + **Uniswap**                                                                | Live mode: cycle returns a swap `txHash`; UI links to Basescan.                                                 | `[keeperhub-client.ts](./apps/server/src/integrations/keeperhub-client.ts)` · `integrations/` (Uniswap builder)                                               |
+| **ENS** (identity)         | [ENS](https://docs.ens.domains/) — resolution on **Ethereum mainnet**                               | Connect a wallet with a primary `.eth` name (and optional `avatar` record); account menu + cycle logs pick it up. | `[ens-operator-snapshot.ts](./apps/server/src/integrations/ens-operator-snapshot.ts)` · `[use-operator-ens.ts](./apps/web/src/hooks/use-operator-ens.ts)` · `[user-dropdown.tsx](./apps/web/src/components/user-dropdown.tsx)` |
 
 
 TypeScript SDK used here: `[@0gfoundation/0g-ts-sdk](https://www.npmjs.com/package/@0gfoundation/0g-ts-sdk)`
@@ -68,7 +69,21 @@ Handy links
 | -------------------------- | ------------------------------------------------------------------------------------------------ |
 | Storage explorer (Galileo) | [storagescan-galileo.0g.ai](https://storagescan-galileo.0g.ai) (also `OG_STORAGE_EXPLORER_BASE`) |
 | Testnet keys / credits     | [pc.testnet.0g.ai](https://pc.testnet.0g.ai/)                                                    |
+| ENS manager (register / profile) | [app.ens.domains](https://app.ens.domains)                                                 |
 
+
+---
+
+## ENS (identity)
+
+ENS integration is **read-only** and **best-effort**: we never block vault flows on name resolution.
+
+- **Chain:** All ENS reads use **Ethereum L1** (ENS’s home chain), via viem `getEnsName` → `normalize` → `getEnsAvatar`, consistent with [ENS docs](https://docs.ens.domains/web/quickstart). Vaults and swaps stay on **Base** (e.g. Sepolia in dev).
+- **Wallet vs in-app agent name:** The **agent name** you set when creating or editing a vault is stored in our DB only. A public **`.eth` primary name** and **avatar** belong to the **operator wallet** (the user’s `primary_wallet_address`). Register or update those in [ENS manager](https://app.ens.domains); the app does not sell or mint names.
+- **Where it shows up:**
+  - **Account menu** — primary name and avatar on the trigger (when present), a one-line note that ENS is L1 and vaults are on Base, and a link to **Register / manage ENS**.
+  - **Trade cycles** — Each new cycle may include an optional `operatorEns` snapshot (`primaryName`, `avatarUrl`) on the persisted `CycleLogRecord` for audit/UI; older rows omit it.
+- **Optional env:** `ETH_MAINNET_RPC_URL` (server) and `NEXT_PUBLIC_ETH_MAINNET_RPC_URL` (web) override the default public mainnet RPC; see `[packages/env](./packages/env)` and `[apps/server/.env.example](./apps/server/.env.example)`.
 
 ---
 
@@ -132,6 +147,7 @@ Quick sanity check
 2. Run a trade cycle (dry-run or live, depending on your env).
 3. Under Recent activity, open Audit trail · 0G Storage and confirm pointer / KV / DA fields as jobs finish.
 4. Optional: `GET /diagnostics` on the API for a short health summary.
+5. Optional: use a wallet with a **primary ENS name** on mainnet — the account menu and new cycle rows should show name/avatar when resolution succeeds.
 
 Repo hygiene
 
@@ -154,7 +170,7 @@ bun run check-types
 | **0G Compute** | `OG_COMPUTE_ROUTER_API_KEY`                                                                               | Required for a real verifier unless `MOCK_RISK_AGENT=true`   |
 | Execution      | `KEEPERHUB_`*, `UNISWAP_ROUTER_ADDRESS`, chain RPC                                                        | `MOCK_EXECUTION=true` fakes a successful swap                |
 | Web            | `NEXT_PUBLIC_SERVER_URL`                                                                                  | Must point at your API                                       |
-
+| **ENS** (optional) | `ETH_MAINNET_RPC_URL`, `NEXT_PUBLIC_ETH_MAINNET_RPC_URL`                                            | Override L1 RPC for `getEnsName` / `getEnsAvatar`; defaults are fine for most dev |
 
 More detail: `[docs/integrations.md](./docs/integrations.md)` and `[packages/env](./packages/env)`.
 

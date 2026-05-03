@@ -21,6 +21,11 @@ export const env = createEnv({
 			.transform((val) => val === "true"),
 		CHAIN_ID: z.coerce.number().int().positive(),
 		CHAIN_RPC_URL: z.url(),
+		/**
+		 * Optional Ethereum L1 RPC for ENS reads (`getEnsName` / `getEnsAvatar`).
+		 * Defaults to viem mainnet public RPC when unset.
+		 */
+		ETH_MAINNET_RPC_URL: z.string().url().optional(),
 		ROUTER_RPC_URL: z.url().optional(),
 		UNISWAP_ROUTER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 		/** Uniswap Developer Platform. On Base mainnet, routes via Universal Router when set. */

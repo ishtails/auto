@@ -4,6 +4,7 @@ import type { CycleLogRecord } from "@auto/api/trade-types";
 import { env } from "@auto/env/web";
 import { ExternalLink } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 const TRAILING_SLASH_RE = /\/$/;
@@ -312,6 +313,34 @@ function getCyclePresentation(entry: CycleLogRecord): {
 	};
 }
 
+function CycleLogOperatorEnsRow({
+	operatorEns,
+}: {
+	operatorEns: NonNullable<CycleLogRecord["operatorEns"]>;
+}) {
+	return (
+		<div className="mt-2 flex min-w-0 items-center gap-2">
+			{operatorEns.avatarUrl ? (
+				<Image
+					alt=""
+					aria-hidden
+					className="size-6 shrink-0 rounded-full object-cover"
+					height={24}
+					src={operatorEns.avatarUrl}
+					unoptimized
+					width={24}
+				/>
+			) : null}
+			<p className="min-w-0 font-manrope text-[#a38c85] text-xs leading-snug">
+				<span className="text-[#6b5d58] text-[10px] uppercase tracking-wide">
+					Operator ENS ·{" "}
+				</span>
+				<span className="text-[#c8d9f5]">{operatorEns.primaryName}</span>
+			</p>
+		</div>
+	);
+}
+
 export function CycleLogEntry({
 	entry,
 	baseScanTxUrl,
@@ -368,6 +397,9 @@ export function CycleLogEntry({
 					>
 						{entry.cycleId}
 					</p>
+					{entry.operatorEns ? (
+						<CycleLogOperatorEnsRow operatorEns={entry.operatorEns} />
+					) : null}
 				</div>
 				<div className="flex shrink-0 flex-col items-end gap-2 text-right">
 					<span className="rounded-md border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1 font-manrope text-[#dbc1b9] text-sm">

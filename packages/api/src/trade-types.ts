@@ -112,6 +112,14 @@ export interface CycleLogRecord {
 		/** Set when a background proof write fails after the HTTP cycle returned 200. */
 		lastError?: string;
 	};
+	/**
+	 * Best-effort L1 Ethereum ENS snapshot for the vault operator wallet at cycle time.
+	 * Omitted when reverse resolution returns no primary name or RPC fails.
+	 */
+	operatorEns?: {
+		avatarUrl: string | null;
+		primaryName: string;
+	};
 	proposal: TradeProposal;
 	riskDecision: RiskDecision;
 	route: {

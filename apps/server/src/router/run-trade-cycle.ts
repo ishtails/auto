@@ -11,6 +11,7 @@ import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
 import { TOKENS } from "../config";
 import { ChainStateClient } from "../integrations/chain-state";
+import { trySnapshotOperatorEns } from "../integrations/ens-operator-snapshot";
 import { enqueueOgCycleLogJob } from "../services/og-cycle-log-queue";
 import { loadTradingMemoryEntries } from "../services/trading-memory-source";
 import { cacheCycleLogToDb } from "./cycle-log-cache";
@@ -249,10 +250,12 @@ export async function runTradeCycleInternal({
 		maxSlippageBps: input.maxSlippageBps ?? null,
 	});
 
-	const { vaultAddress, profile } = await getOwnedActiveVault(
-		context.auth.privyUserId,
-		input.vaultId
-	);
+	const { operatorWalletAddress, profile, vaultAddress } =
+		await getOwnedActiveVault(context.auth.privyUserId, input.vaultId);
+
+	const operatorEns = operatorWalletAddress
+		? await trySnapshotOperatorEns(operatorWalletAddress)
+		: undefined;
 
 	const executorEnabled = Boolean(profile.executorEnabled);
 	const effectiveDryRun = input.dryRun || !executorEnabled;
@@ -409,6 +412,7 @@ export async function runTradeCycleInternal({
 			amountIn: effectiveAmountIn,
 			maxSlippageBps: effectiveMaxSlippageBps,
 		},
+		...(operatorEns ? { operatorEns } : {}),
 		proposal,
 		riskDecision: logRiskDecision,
 		execution,
