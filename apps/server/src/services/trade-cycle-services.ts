@@ -1,8 +1,4 @@
 import type { IntegrationServices } from "@auto/api/context";
-import type {
-	CycleLogRecord,
-	LlmTradingMemoryEntry,
-} from "@auto/api/trade-types";
 import { env } from "@auto/env/server";
 import { base, baseSepolia } from "viem/chains";
 import {
@@ -13,7 +9,6 @@ import {
 	TOKENS,
 	type TokenKey,
 } from "../config";
-import { db } from "../db";
 import { ChainStateClient } from "../integrations/chain-state";
 import { getDexScreenerMarketContext } from "../integrations/dexscreener";
 import { KeeperHubClient } from "../integrations/keeperhub-client";
@@ -29,7 +24,7 @@ import { UniswapBuilder } from "../integrations/uniswap-builder";
 import { encodeVaultExecuteTrade } from "../integrations/vault-executor";
 import { deriveOgLogPointer } from "../lib/og-log-pointer";
 import { integrationDebugLog } from "../router/debug";
-import { rawCycleLogToLlmTradingMemory } from "./trading-memory";
+import { loadTradingMemoryEntries } from "./trading-memory-source";
 
 const chainIdToKeeperNetwork = (chainId: number): string => {
 	if (chainId === 8453) {
@@ -39,50 +34,6 @@ const chainIdToKeeperNetwork = (chainId: number): string => {
 		return "base-sepolia";
 	}
 	return String(chainId);
-};
-
-const MEMORY_READ_TIMEOUT_MS = 2500;
-
-const autoVaultIdPrefix = "auto-vault-";
-const uuidLikeRegex =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const extractVaultIdFromMemoryPointer = (
-	memoryPointer: string
-): string | null => {
-	if (!memoryPointer.startsWith(autoVaultIdPrefix)) {
-		return null;
-	}
-	const id = memoryPointer.slice(autoVaultIdPrefix.length);
-	// Basic shape check: uuid v4-ish
-	if (!uuidLikeRegex.test(id)) {
-		return null;
-	}
-	return id;
-};
-
-const getRecentMemoryFromDb = async (
-	memoryPointer: string
-): Promise<LlmTradingMemoryEntry[]> => {
-	const vaultId = extractVaultIdFromMemoryPointer(memoryPointer);
-	if (!vaultId) {
-		return [];
-	}
-
-	const rows = await db.query.vaultCycleLogs.findMany({
-		where: (table, { eq }) => eq(table.vaultId, vaultId),
-		orderBy: (table, { desc }) => desc(table.occurredAt),
-		limit: 5,
-	});
-
-	const out: LlmTradingMemoryEntry[] = [];
-	for (const row of rows) {
-		const entry = rawCycleLogToLlmTradingMemory(row.record);
-		if (entry) {
-			out.push(entry);
-		}
-	}
-	return out;
 };
 
 const buildDexScreenerPromptContext = (
@@ -233,38 +184,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 			};
 		},
 		generateProposal: async (state, vaultConfig) => {
-			const streamId = vaultConfig.memoryPointer;
-			const dynamicLogger = new OgLogger(
-				env.OG_INDEXER_RPC,
-				env.OG_KV_ENDPOINT,
-				streamId,
-				env.OG_RPC_URL,
-				env.OG_PRIVATE_KEY,
-				env.OG_FLOW_CONTRACT
-			);
-
-			// Prefer Postgres cache (reliable). Fall back to 0G read (best-effort).
-			const memoryFromDb = await getRecentMemoryFromDb(streamId).catch(
-				() => []
-			);
-			const memory =
-				memoryFromDb.length > 0
-					? memoryFromDb
-					: await Promise.race([
-							dynamicLogger.readRecentLogs(5).catch(() => []),
-							new Promise<CycleLogRecord[]>((resolve) =>
-								setTimeout(() => resolve([]), MEMORY_READ_TIMEOUT_MS)
-							),
-						]).then((recentLogs) => {
-							const mapped: LlmTradingMemoryEntry[] = [];
-							for (const log of recentLogs) {
-								const entry = rawCycleLogToLlmTradingMemory(log);
-								if (entry) {
-									mapped.push(entry);
-								}
-							}
-							return mapped;
-						});
+			const memory = await loadTradingMemoryEntries(vaultConfig.memoryPointer);
 
 			const wethMain = TOKENS.WETH.BASE_MAINNET_ADDRESS;
 			const sections: string[] = [
@@ -322,10 +242,13 @@ export const createIntegrationServices = (): IntegrationServices => {
 				allowedTokens
 			);
 		},
-		sendToRiskAgent: (proposal, { cycleId, deterministicRisk }) => {
+		sendToRiskAgent: (
+			proposal,
+			{ cycleId, deterministicRisk, tradingMemory }
+		) => {
 			if (env.MOCK_RISK_AGENT) {
 				console.log(
-					"[RiskAgent] Mock mode — skipping 0G Compute secondary risk pass"
+					"[RiskAgent] Mock mode — skipping 0G Compute verifier stage"
 				);
 				return Promise.resolve({
 					decision: "APPROVE",
@@ -335,6 +258,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 
 			return verifyProposalWithOgComputeRouter(proposal, deterministicRisk, {
 				cycleId,
+				tradingMemory,
 			});
 		},
 		evaluateRisk: (proposal, state, _vaultConfig) =>
@@ -408,8 +332,10 @@ export const createIntegrationServices = (): IntegrationServices => {
 			const ogReachable = await logger.healthcheck();
 			const last = getLastOgKvTelemetry();
 
-			const architecture =
-				"Postgres is the queryable cache for fast UI and SSE; 0G Storage (KV) is the canonical durable audit log and pointer layer per vault stream.";
+			const daNote = env.OG_DA_CYCLE_TRACE
+				? " Cycles also upload a DA JSON trace (MemData + Indexer.upload) alongside KV."
+				: "";
+			const architecture = `Postgres is the queryable cache for fast UI and SSE; 0G Storage KV holds stream keys + cycle rows; 0G Compute Router runs a dedicated verifier stage.${daNote}`;
 
 			return {
 				architecture,
@@ -417,7 +343,7 @@ export const createIntegrationServices = (): IntegrationServices => {
 					postgres:
 						"Cycle rows and SSE history are served from Postgres so the app stays fast when 0G indexer/KV is slow or flaky.",
 					zeroG:
-						"Each cycle is written to 0G KV under the vault memory stream; batch txHash / rootHash prove the append when the SDK returns them.",
+						"KV: Batcher stream keys (latest, idx:, c:cycleId). DA: when OG_DA_CYCLE_TRACE (default on), MemData + Indexer.upload for a full-cycle JSON blob + root.",
 				},
 				keeperhub: keeperhubReachable,
 				links: { storageExplorer: env.OG_STORAGE_EXPLORER_BASE },

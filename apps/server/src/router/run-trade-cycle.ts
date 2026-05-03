@@ -12,6 +12,7 @@ import type { z } from "zod";
 import { TOKENS } from "../config";
 import { ChainStateClient } from "../integrations/chain-state";
 import { enqueueOgCycleLogJob } from "../services/og-cycle-log-queue";
+import { loadTradingMemoryEntries } from "../services/trading-memory-source";
 import { cacheCycleLogToDb } from "./cycle-log-cache";
 import { sanitizeCycleLogRecord } from "./cycle-log-sanitize";
 import {
@@ -138,17 +139,23 @@ const resolveVaultRisk = async (args: {
 	);
 	debugLog(cycleId, "deterministic risk", deterministicRisk);
 
+	const tradingMemoryForVerifier =
+		deterministicRisk.decision === "REJECT"
+			? []
+			: await loadTradingMemoryEntries(vaultConfig.memoryPointer);
+
 	const computeRisk: RiskDecision =
 		deterministicRisk.decision === "REJECT"
 			? {
 					decision: "REJECT",
-					reason: "0G Compute pass skipped (deterministic gate rejected)",
+					reason: "0G Compute verifier skipped (deterministic gate rejected)",
 				}
 			: await services.sendToRiskAgent(proposal, {
 					cycleId,
 					deterministicRisk,
+					tradingMemory: tradingMemoryForVerifier,
 				});
-	debugLog(cycleId, "0g compute risk", computeRisk);
+	debugLog(cycleId, "0g compute verifier", computeRisk);
 
 	const riskDecision: RiskDecision =
 		deterministicRisk.decision === "APPROVE" &&
