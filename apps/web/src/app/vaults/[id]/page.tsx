@@ -466,17 +466,6 @@ export default function VaultDetailPage() {
 						</div>
 					</header>
 
-					{vault ? (
-						<VaultScheduleSection
-							vault={{
-								executorEnabled: vault.executorEnabled,
-								scheduleCadenceSeconds: vault.scheduleCadenceSeconds,
-								scheduleNextRunAt: vault.scheduleNextRunAt,
-							}}
-							vaultId={vaultId}
-						/>
-					) : null}
-
 					<Sheet
 						onOpenChange={(open) => {
 							setFundSheetOpen(open);
@@ -580,10 +569,28 @@ export default function VaultDetailPage() {
 						</SheetContent>
 					</Sheet>
 
-					<VaultPortfolioAnalytics
-						balances={balances.data}
-						isLoading={balances.isLoading}
-					/>
+					<div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-stretch lg:gap-8">
+						<div className="order-1 flex min-h-0 min-w-0 flex-col lg:col-span-8">
+							<VaultPortfolioAnalytics
+								balances={balances.data}
+								isLoading={balances.isLoading}
+							/>
+						</div>
+						<div className="order-2 flex min-h-0 flex-col lg:col-span-4">
+							{vault ? (
+								<div className="flex min-h-0 flex-1 flex-col lg:sticky lg:top-4 lg:h-full">
+									<VaultScheduleSection
+										vault={{
+											executorEnabled: vault.executorEnabled,
+											scheduleCadenceSeconds: vault.scheduleCadenceSeconds,
+											scheduleNextRunAt: vault.scheduleNextRunAt,
+										}}
+										vaultId={vaultId}
+									/>
+								</div>
+							) : null}
+						</div>
+					</div>
 
 					<div className="mt-12 grid gap-6">
 						<ManualCycleSheet />

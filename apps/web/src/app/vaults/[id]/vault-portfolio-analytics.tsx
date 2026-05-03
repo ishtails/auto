@@ -234,9 +234,9 @@ export function VaultPortfolioAnalytics({
 	}));
 
 	return (
-		<Card className="border-[#55433d] bg-[#1b1b1b]">
-			<CardContent>
-				<div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+		<Card className="h-full min-h-0 border-[#55433d] bg-[#1b1b1b]">
+			<CardContent className="flex min-h-0 flex-1 flex-col">
+				<div className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
 					<div className="min-w-0 flex-1 space-y-6">
 						<div>
 							<p className="font-manrope text-[#a38c85] text-[10px] uppercase tracking-[0.08em]">

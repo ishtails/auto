@@ -75,11 +75,6 @@ export function LiveActivityCard() {
 						<Activity className="size-5 shrink-0 text-[#ffb59e]" />
 						Recent activity
 					</CardTitle>
-					<p className="max-w-md font-manrope text-[#a38c85] text-sm leading-relaxed">
-						Recent holds, suggestions, and trades. Use{" "}
-						<span className="text-[#dbc1b9]">Run trade cycle</span> above to
-						trigger the agent.
-					</p>
 				</div>
 				<DataPlaneStrip />
 			</CardHeader>
@@ -90,7 +85,7 @@ export function LiveActivityCard() {
 							Nothing here yet.
 						</p>
 						<p className="mx-auto mt-2 max-w-sm font-manrope text-[#a38c85] text-sm leading-relaxed">
-							Run trade cycle or turn executor on — activity will show up here.
+							Run a cycle to see it here.
 						</p>
 					</div>
 				) : (
