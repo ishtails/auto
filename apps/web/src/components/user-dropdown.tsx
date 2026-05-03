@@ -83,7 +83,7 @@ export function UserDropdown() {
 					/>
 				}
 			>
-				<span className="flex max-w-[11rem] items-center gap-2">
+				<span className="flex max-w-44 items-center gap-2">
 					{operatorEns.data?.avatarUrl ? (
 						<Image
 							alt=""
