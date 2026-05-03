@@ -130,3 +130,31 @@ export const setVaultScheduleOutputSchema = z.object({
 	ok: z.literal(true),
 	scheduleNextRunAt: z.string().nullable(),
 });
+
+export const getVaultAgentProfileInputSchema = z.object({
+	vaultId: z.string().uuid(),
+});
+
+export const vaultAgentProfileOutputSchema = z.object({
+	geminiSystemPrompt: z.string(),
+	maxSlippageBps: z.number().int(),
+	/** Same as `listVaults` `riskScore`: max trade size in basis points. */
+	maxTradeBps: z.number().int(),
+	name: z.string(),
+	tokenIn: z.string(),
+	tokenOut: z.string(),
+});
+
+export const updateVaultAgentSettingsSchema = z.object({
+	geminiSystemPrompt: z.string().min(1).max(24_000),
+	maxSlippageBps: z.number().int().min(1).max(2000),
+	maxTradeBps: z.number().int().min(1).max(10_000),
+	name: z.string().min(1).max(100),
+	tokenIn: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+	tokenOut: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+	vaultId: z.string().uuid(),
+});
+
+export const updateVaultAgentSettingsOutputSchema = z.object({
+	ok: z.literal(true),
+});

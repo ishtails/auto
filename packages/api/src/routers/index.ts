@@ -9,6 +9,7 @@ import {
 } from "../trade-types";
 import {
 	createVaultDeploymentSchema,
+	getVaultAgentProfileInputSchema,
 	getVaultBalancesOutputSchema,
 	getVaultBalancesSchema,
 	getVaultDeploymentOutputSchema,
@@ -19,6 +20,9 @@ import {
 	setVaultExecutorEnabledSchema,
 	setVaultScheduleOutputSchema,
 	setVaultScheduleSchema,
+	updateVaultAgentSettingsOutputSchema,
+	updateVaultAgentSettingsSchema,
+	vaultAgentProfileOutputSchema,
 } from "../vault-types";
 
 // NOTE: This router is a template that gets extended by the server.
@@ -114,6 +118,24 @@ export const appRouterTemplate = {
 		.handler(() => {
 			throw new ORPCError("NOT_IMPLEMENTED", {
 				message: "Server must implement this procedure",
+			});
+		}),
+
+	getVaultAgentProfile: authedProcedure
+		.input(getVaultAgentProfileInputSchema)
+		.output(vaultAgentProfileOutputSchema)
+		.handler(() => {
+			throw new ORPCError("NOT_IMPLEMENTED", {
+				message: "Server must implement getVaultAgentProfile",
+			});
+		}),
+
+	updateVaultAgentSettings: authedProcedure
+		.input(updateVaultAgentSettingsSchema)
+		.output(updateVaultAgentSettingsOutputSchema)
+		.handler(() => {
+			throw new ORPCError("NOT_IMPLEMENTED", {
+				message: "Server must implement updateVaultAgentSettings",
 			});
 		}),
 };

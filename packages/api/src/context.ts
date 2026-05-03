@@ -1,6 +1,7 @@
 import type {
 	CycleLogRecord,
 	KeeperExecutionResult,
+	LlmTradingMemoryEntry,
 	RiskDecision,
 	RouteBuildResult,
 	TradeProposal,
@@ -111,6 +112,8 @@ export interface IntegrationServices {
 		context: {
 			cycleId: string;
 			deterministicRisk: RiskDecision;
+			/** Same structured memory as Gemini; fed explicitly into 0G Compute verifier. */
+			tradingMemory: LlmTradingMemoryEntry[];
 		}
 	) => Promise<RiskDecision>;
 }

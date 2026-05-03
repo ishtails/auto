@@ -100,6 +100,13 @@ export interface CycleLogRecord {
 		rootHash?: string;
 		/** L1 tx that committed the KV batch (Galileo / testnet explorer). */
 		txHash?: string;
+		/**
+		 * **DA / file layer** — root from `MemData` + `Indexer.upload` (full cycle JSON envelope).
+		 * Distinct from KV `rootHash` (small stream keys vs blob trace).
+		 */
+		daRootHash?: string;
+		/** L1 tx for the DA blob submission. */
+		daTxHash?: string;
 		/** True while the KV row is committed but batch proof is still landing in Postgres. */
 		pending?: boolean;
 		/** Set when a background proof write fails after the HTTP cycle returned 200. */
