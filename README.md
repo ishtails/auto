@@ -1,42 +1,60 @@
 # Auto
 
+**Verified DeAI: Router-gated inference, KeeperHub settlement, traces anchored on 0G.**
+
+Auto treats **decentralized AI** as more than a chat model behind an API — it is a pipeline where inference is **separated from verification**, outcomes are **anchored to decentralized storage**, and swaps only fire when **policy + verifier + execution** all agree. Run several agents in parallel, each with its own rules, risk limits, and memory; review what they propose, then let the strong ones run on a schedule or on demand.
+
+| | |
+| --- | --- |
+| **DeAI verification** | A dedicated **0G Compute** Router pass approves or rejects proposals using the same memory and JSON the model saw — decentralized inference as a gate, not decoration. |
+| **DeAI auditability** | **0G Storage** (**KV** + **DA**) holds stream state and full-cycle traces so reasoning and execution are inspectable long after the HTTP response returns. |
+| **DeAI guardrails** | Deterministic checks first, optional **KeeperHub** execution on-chain last — keep flows in **suggest-only** mode or turn on automated swaps when you are ready. |
+
+**Same pipeline, provable artifacts.** Auto is a reference implementation: an LLM proposes; **0G Compute** verifies; **KeeperHub** settles against an EVM vault; **0G Storage** preserves the reasoning graph for audit and replay — no “trust our backend” story.
+
 <img width="1780" height="1071" alt="Screenshot 2026-05-03 at 8 17 53 PM" src="https://github.com/user-attachments/assets/e8fa1ace-bfbc-4d4b-8be1-97f78bbe2ace" />
 
 <br/>
 
-Auto deploys autonomous AI trading vaults on Base. Instead of trusting a centralized backend, every decision is cryptographically audited. An LLM proposes a trade, **0G Compute** verifies the risk parameters, **KeeperHub** executes the swap on-chain, and the entire thought process is permanently logged to **0G Storage** (**KV** + **DA**). Verifiable intent, zero black boxes.
+---
+
+## The problem this solves
+
+Autonomous agents that move real capital are stuck between two bad options: **centralized black boxes** (fast UX, zero defensibility) or **on-chain scripts** (transparent but rigid). Auto sits in the middle: **human-grade reasoning** from an LLM, **deterministic gates** before capital moves, a **named verifier stage** on **0G Compute**, and **durable proofs** on **0G Storage** so anyone can answer: *what was proposed, what was checked, what actually ran, and where is the evidence?*
+
+That combination—**intent → policy → verified judgment → execution → provable record**—is the architectural bet this repo demonstrates end-to-end. **Base** is only the L2 this deployment targets for vaults and DEX calldata; the DeAI shape is the center, not any single chain.
 
 ---
 
-## What is Auto?
+## What Auto is
 
-auto is a small product slice: users sign in, manage vaults, and trigger trade cycles manually or on a schedule. Each cycle produces a structured record (proposal, risk outcome, optional execution). The web app stays fast because we cache that history in Postgres and stream updates over SSE; the durable audit trail is written to **0G Storage** in two complementary ways—**KV** for nimble stream state and **DA** blobs for a full JSON trace per cycle.
-
----
-
-## Why we built it this way
-
-- Trust: We wanted verifiable storage patterns (**KV** + file-style **DA**) and a named inference step on **0G Compute** so the story is easy to follow: *propose → check → verify → execute → prove on 0G*.
-- Speed vs durability: Blockchains and storage networks aren’t instant. Postgres + SSE give a responsive UI; background jobs finish KV/DA writes and patch the same row when proofs arrive so the activity card updates without blocking the HTTP response.
-- One codebase: Everything runs in a monorepo (Next.js + Hono) so judges and contributors can grep from the README table straight into the implementation.
+Auto is a production-shaped monorepo: operators authenticate, configure vaults, and run trade cycles on demand or on a schedule. Each cycle emits a structured artifact (proposal, risk outcome, optional swap execution). The interface stays instant because **Postgres** caches history and **SSE** pushes updates as background work completes; **0G** receives the authoritative audit in parallel—**KV** for stream-oriented state and **DA** blobs for a complete JSON trace per cycle. **Execution defaults to Base** (KeeperHub + Uniswap) in this tree; swap env and integrations for another EVM L2 and the rest of the stack stays the same.
 
 ---
 
-## How it works (human version)
+## Why this architecture
 
-1. Suggest — LLM outputs a strict JSON trade proposal using recent trading memory (prior cycles), plus your vault rules.
-2. Gate — Deterministic risk checks run first (allowlists, sizing, and similar).
-3. Verify — If the gate passes, a **0G Compute** Router call acts as a verifier stage: it sees the same memory and the proposal in separate prompt blocks, and returns an approve/reject verdict.
-4. Execute (optional) — If policy allows and risk is green, the server builds **Uniswap** calldata and submits the swap via **KeeperHub** to the user’s vault on Base.
-5. Record — The cycle is saved for the UI, then **KV** and (by default) a **DA** trace blob are written in the background; the UI shows pointers, batch roots, and tx links when they land.
+- **Verifiability over vibes.** KV + DA patterns and a Router-mediated inference step on **0G Compute** make the story linear and inspectable: *propose → gate → verify → execute → anchor on 0G*.
+- **Latency where users touch the product; durability where capital and reputation matter.** Chains and decentralized storage are not synchronous with a click. Postgres + SSE keep the UI honest; workers finish KV/DA writes and reconcile rows when proofs land so activity cards update without blocking HTTP.
+- **One surface for reviewers.** Next.js + Hono in a single Turborepo so a line in the integration table maps straight to the implementation.
 
-If you’re skimming for integrations, the next section maps each of those steps to docs, code, and env.
+---
+
+## How a cycle runs
+
+1. **Suggest** — The model emits a strict JSON trade proposal using trading memory (prior cycles) and vault rules.
+2. **Gate** — Deterministic risk checks run first (allowlists, sizing, and related policy).
+3. **Verify** — If the gate passes, **0G Compute** (Router) performs a verifier pass: same memory and proposal in separated prompt blocks → approve/reject.
+4. **Execute (optional)** — When policy allows and risk is green, the server builds **Uniswap** calldata and submits via **KeeperHub** to the user’s on-chain vault (configured chain in this repo: **Base**).
+5. **Record** — The cycle persists for the UI; **KV** and (by default) a **DA** trace upload run in the background; the UI surfaces pointers, batch roots, and transaction links as they confirm.
+
+Skimming for integrations? The next section maps each step to docs, code, and environment.
 
 ---
 
 ## Integration map
 
-Note: All builder feedback (**0G**, **Uniswap**, **KeeperHub**, **E NS / Basenames**) is in [`FEEDBACK.md`](./FEEDBACK.md).
+Note: All builder feedback (**0G**, **Uniswap**, **KeeperHub**, **ENS / Basenames**) is in [`FEEDBACK.md`](./FEEDBACK.md).
 
 <br/>
 <img width="1783" height="631" alt="Screenshot 2026-05-04 at 12 05 49 AM" src="https://github.com/user-attachments/assets/b53b7176-7955-43be-a959-a926f60c9c7f" />
@@ -52,7 +70,7 @@ Each row is something you can run, click, or grep in the repo.
 | **KV** audit trail         | [Storage SDK — KV](https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk)                   | Open a vault → Recent activity → audit block: stream pointer, KV batch root, batch tx.                          | `[og-logger.ts](./apps/server/src/integrations/og-logger.ts)` · `[og-cycle-log-queue.ts](./apps/server/src/services/og-cycle-log-queue.ts)`                   |
 | **DA** full trace blob     | [Storage SDK — upload](https://docs.0g.ai/developer-hub/building-on-0g/storage/sdk) (`MemData`)   | Same card: DA trace root and DA blob tx (optional: `OG_DA_CYCLE_TRACE=false` to skip).                          | `[og-cycle-da-blob.ts](./apps/server/src/integrations/og-cycle-da-blob.ts)`                                                                                   |
 | Live UI                    | Postgres + SSE                                                                                    | Scroll activity; proofs can appear shortly after the cycle returns 200.                                         | `[cycle-stream.ts](./apps/server/src/router/cycle-stream.ts)` · `[use-vault-cycle-feed.ts](./apps/web/src/app/vaults/[id]/use-vault-cycle-feed.ts)`           |
-| Swaps                      | Base + **KeeperHub** + **Uniswap**                                                                | Live mode: cycle returns a swap `txHash`; UI links to Basescan.                                                 | `[keeperhub-client.ts](./apps/server/src/integrations/keeperhub-client.ts)` · `integrations/` (Uniswap builder)                                               |
+| Swaps                      | **KeeperHub** + **Uniswap** on configured EVM L2 (this repo: **Base**)                             | Live mode: cycle returns a swap `txHash`; explorer link matches the deployment chain.                            | `[keeperhub-client.ts](./apps/server/src/integrations/keeperhub-client.ts)` · `integrations/` (Uniswap builder)                                               |
 | **ENS** (identity)         | [ENS](https://docs.ens.domains/) — resolution on **Ethereum mainnet**                               | Connect a wallet with a primary `.eth` name (and optional `avatar` record); account menu + cycle logs pick it up. | `[ens-operator-snapshot.ts](./apps/server/src/integrations/ens-operator-snapshot.ts)` · `[use-operator-ens.ts](./apps/web/src/hooks/use-operator-ens.ts)` · `[user-dropdown.tsx](./apps/web/src/components/user-dropdown.tsx)` |
 
 
@@ -74,10 +92,10 @@ Handy links
 
 ENS integration is **read-only** and **best-effort**: we never block vault flows on name resolution.
 
-- **Chain:** All ENS reads use **Ethereum L1** (ENS’s home chain), via viem `getEnsName` → `normalize` → `getEnsAvatar`, consistent with [ENS docs](https://docs.ens.domains/web/quickstart). Vaults and swaps stay on **Base** (e.g. Sepolia in dev).
+- **Chain:** All ENS reads use **Ethereum L1** (ENS’s home chain), via viem `getEnsName` → `normalize` → `getEnsAvatar`, consistent with [ENS docs](https://docs.ens.domains/web/quickstart). Vaults and swaps use the app’s configured L2 — **Base** (e.g. Base Sepolia) in this repository.
 - **Wallet vs in-app agent name:** The **agent name** you set when creating or editing a vault is stored in our DB only. A public **`.eth` primary name** and **avatar** belong to the **operator wallet** (the user’s `primary_wallet_address`). Register or update those in [ENS manager](https://app.ens.domains); the app does not sell or mint names.
 - **Where it shows up:**
-  - **Account menu** — primary name and avatar on the trigger (when present), a one-line note that ENS is L1 and vaults are on Base, and a link to **Register / manage ENS**.
+  - **Account menu** — primary name and avatar on the trigger (when present), a one-line note that ENS is L1 and vaults use the configured L2 (Base here), and a link to **Register / manage ENS**.
   - **Trade cycles** — Each new cycle may include an optional `operatorEns` snapshot (`primaryName`, `avatarUrl`) on the persisted `CycleLogRecord` for audit/UI; older rows omit it.
 - **Optional env:** `ETH_MAINNET_RPC_URL` (server) and `NEXT_PUBLIC_ETH_MAINNET_RPC_URL` (web) override the default public mainnet RPC; see `[packages/env](./packages/env)` and `[apps/server/.env.example](./apps/server/.env.example)`.
 
@@ -89,7 +107,7 @@ For **partner-facing ENS / Basenames notes** (use case, primary-name gap, L2 eco
 
 ---
 
-## The Execution Pipeline
+## Execution pipeline
 
 ```mermaid
 flowchart LR
@@ -125,7 +143,7 @@ flowchart LR
 
 
 
-In one sentence: Postgres and SSE keep the app snappy; **0G Storage** uses **KV** for stream-shaped audit keys and **DA** for a full JSON envelope per cycle. Expect two storage-related txs when both paths are on (KV batch + DA upload).
+Postgres and SSE optimize for responsiveness; **0G Storage** uses **KV** for stream-shaped audit keys and **DA** for a full JSON envelope per cycle. With both paths enabled, expect two storage-related transactions (KV batch + DA upload).
 
 ---
 
