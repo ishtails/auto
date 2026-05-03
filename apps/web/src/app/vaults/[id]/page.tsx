@@ -2,6 +2,16 @@
 
 import { USER_VAULT_ABI } from "@auto/contracts/factory-definitions";
 import { AddressWithCopy } from "@auto/ui/components/address";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@auto/ui/components/alert-dialog";
 import { Button } from "@auto/ui/components/button";
 import {
 	DropdownMenu,
@@ -185,6 +195,7 @@ export default function VaultDetailPage() {
 	const [fundSheetOpen, setFundSheetOpen] = useState(false);
 	const [triggerSheetOpen, setTriggerSheetOpen] = useState(false);
 	const [editAgentSheetOpen, setEditAgentSheetOpen] = useState(false);
+	const [executorConfirmOpen, setExecutorConfirmOpen] = useState(false);
 
 	const primaryWallet = wallets[0] as PrivyWalletLike | undefined;
 
@@ -458,15 +469,16 @@ export default function VaultDetailPage() {
 									if (!vault) {
 										return;
 									}
-									const next = !vault.executorEnabled;
+									// If turning OFF, show confirmation dialog
+									if (vault.executorEnabled) {
+										setExecutorConfirmOpen(true);
+										return;
+									}
+									// If turning ON, do it directly
 									setVaultExecutorEnabled
-										.mutateAsync({ vaultId, executorEnabled: next })
+										.mutateAsync({ vaultId, executorEnabled: true })
 										.then(() => {
-											toast.success(
-												next
-													? "Executor on — agent may execute swaps"
-													: "Executor off — suggestions only"
-											);
+											toast.success("Executor on — agent may execute swaps");
 											return queryClient.invalidateQueries({
 												queryKey: orpc.listVaults.queryOptions().queryKey,
 											});
@@ -481,6 +493,48 @@ export default function VaultDetailPage() {
 								<ShieldCheck className="size-4" />
 								Executor: {vault?.executorEnabled ? "ON" : "OFF"}
 							</Button>
+
+							<AlertDialog
+								onOpenChange={setExecutorConfirmOpen}
+								open={executorConfirmOpen}
+							>
+								<AlertDialogContent className="border-[#55433d] bg-[#1b1b1b]">
+									<AlertDialogHeader>
+										<AlertDialogTitle className="font-newsreader text-[#f5f5f2] italic">
+											Turn off auto-pilot?
+										</AlertDialogTitle>
+										<AlertDialogDescription className="font-manrope text-[#dbc1b9]">
+											Disabling the executor will stop your agent from
+											automatically executing trades. It will continue to
+											suggest trades, but you&apos;ll need to manually approve
+											each one.
+										</AlertDialogDescription>
+									</AlertDialogHeader>
+									<AlertDialogFooter>
+										<AlertDialogCancel className="border-[#55433d] font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]">
+											Cancel
+										</AlertDialogCancel>
+										<AlertDialogAction
+											className="bg-[#d97757] font-manrope text-[#1b1b1b] hover:bg-[#ffb59e]"
+											onClick={() => {
+												setVaultExecutorEnabled
+													.mutateAsync({ vaultId, executorEnabled: false })
+													.then(() => {
+														toast.success("Executor off — suggestions only");
+														return queryClient.invalidateQueries({
+															queryKey: orpc.listVaults.queryOptions().queryKey,
+														});
+													})
+													.catch(() => {
+														/* errors surfaced via toast */
+													});
+											}}
+										>
+											Turn off
+										</AlertDialogAction>
+									</AlertDialogFooter>
+								</AlertDialogContent>
+							</AlertDialog>
 
 							<Button
 								className="bg-[#d97757] px-5 font-manrope text-[#1b1b1b] shadow-[0_0_0_1px_rgba(217,119,87,0.35)] hover:bg-[#ffb59e]"

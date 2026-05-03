@@ -2,6 +2,7 @@
 
 import type { CycleLogRecord } from "@auto/api/trade-types";
 import { env } from "@auto/env/web";
+import { formatDistanceToNow } from "date-fns";
 import { ExternalLink } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import Image from "next/image";
@@ -405,14 +406,17 @@ export function CycleLogEntry({
 					<span className="rounded-md border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1 font-manrope text-[#dbc1b9] text-sm">
 						{presentation.runPill}
 					</span>
-					<p className="font-manrope text-[#6b5d58] text-xs leading-snug">
-						<span className="text-[#a38c85] text-[10px] uppercase tracking-wide">
-							Ran at{" "}
-						</span>
+					<p
+						className="font-manrope text-[#6b5d58] text-xs leading-snug"
+						title={new Date(entry.timestamp).toLocaleString(undefined, {
+							dateStyle: "medium",
+							timeStyle: "short",
+						})}
+					>
 						<time dateTime={entry.timestamp}>
-							{new Date(entry.timestamp).toLocaleString(undefined, {
-								dateStyle: "medium",
-								timeStyle: "short",
+							Ran{" "}
+							{formatDistanceToNow(new Date(entry.timestamp), {
+								addSuffix: true,
 							})}
 						</time>
 					</p>

@@ -20,8 +20,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 				appId={env.NEXT_PUBLIC_PRIVY_APP_ID}
 				config={{
 					appearance: {
-						theme: "dark",
-						accentColor: "#676FFF",
+						theme: "#131313",
+						accentColor: "#d97757",
+						landingHeader: "Sign in",
+						loginMessage:
+							"Spin up multiple fund managers, review trade suggestions, and optionally enable execution.",
+						showWalletLoginFirst: true,
 					},
 					defaultChain: baseSepolia,
 					supportedChains: [baseSepolia],

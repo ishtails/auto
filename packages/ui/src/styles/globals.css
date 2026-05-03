@@ -91,6 +91,26 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
+		--privy-border-radius-sm: 8px;
+		--privy-border-radius-md: 10px;
+		--privy-border-radius-lg: 14px;
+		--privy-border-radius-full: 9999px;
+		--privy-color-background: #131313;
+		--privy-color-background-2: #1b1b1b;
+		--privy-color-background-3: #2a2a2a;
+		--privy-color-foreground: #f5f5f2;
+		--privy-color-foreground-2: #dbc1b9;
+		--privy-color-foreground-3: #a38c85;
+		--privy-color-foreground-4: #6b5d58;
+		--privy-color-foreground-accent: #ffb59e;
+		--privy-color-accent: #d97757;
+		--privy-color-accent-light: #ffb59e;
+		--privy-color-accent-lightest: #ffdfd5;
+		--privy-color-accent-dark: #c86a4f;
+		--privy-color-accent-darkest: #9d4e37;
+		--privy-color-success: #1db954;
+		--privy-color-error: #e34f4f;
+		--privy-color-error-light: #ffb3b3;
 		@apply font-sans bg-background text-foreground;
 	}
 	html {
