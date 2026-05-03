@@ -165,5 +165,15 @@ export const ogCycleLogWorker = new Worker(
 	{
 		embedded: true,
 		concurrency: 2,
+		/**
+		 * bunqueue embedded + `useLocks: true` (default): locks expire after 30s via
+		 * `checkExpiredLocks`, but embedded heartbeats only bump `job.lastHeartbeat` —
+		 * they do not renew the BullMQ-style lock (`renewJobLock` needs a token).
+		 * OG KV + DA uploads often exceed 30s, so the lock is released, the job may be
+		 * re-pulled, and the original worker's `fail`/`ack` hits "Invalid or expired
+		 * lock token". Stall detection still uses `lastHeartbeat` (renewed every
+		 * `heartbeatInterval`), which is appropriate for these I/O-bound jobs.
+		 */
+		useLocks: false,
 	}
 );
