@@ -18,8 +18,34 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-	title: "auto.eth",
-	description: "Autonomous trading vault control surface",
+	metadataBase: new URL(
+		process.env.VERCEL_URL
+			? `https://${process.env.VERCEL_URL}`
+			: "http://localhost:3000"
+	),
+	title: {
+		default: "auto.eth",
+		template: "%s · auto.eth",
+	},
+	description:
+		"Autonomous fund manager orchestration — create, run, and verify agent vaults.",
+	applicationName: "auto.eth",
+	icons: {
+		icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+	},
+	openGraph: {
+		type: "website",
+		siteName: "auto.eth",
+		title: "auto.eth",
+		description:
+			"Autonomous fund manager orchestration — create, run, and verify agent vaults.",
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "auto.eth",
+		description:
+			"Autonomous fund manager orchestration — create, run, and verify agent vaults.",
+	},
 };
 
 export default function RootLayout({

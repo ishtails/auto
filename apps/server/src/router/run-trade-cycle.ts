@@ -247,6 +247,23 @@ const resolveExecutionPlan = ({
 	return { shouldExecute, dryRunForRecord };
 };
 
+const resolveDisplayReason = (args: {
+	computeRisk: RiskDecision;
+	deterministicRisk: RiskDecision;
+	proposalAction: CycleLogRecord["proposal"]["action"];
+	riskDecision: RiskDecision;
+}): string | null => {
+	if (args.riskDecision.decision === "REJECT") {
+		return args.deterministicRisk.decision === "REJECT"
+			? args.deterministicRisk.reason
+			: args.computeRisk.reason;
+	}
+	if (args.proposalAction === "HOLD") {
+		return args.deterministicRisk.reason;
+	}
+	return null;
+};
+
 export async function runTradeCycleInternal({
 	context,
 	input,
@@ -432,6 +449,8 @@ export async function runTradeCycleInternal({
 		}
 	}
 
+	const agentBasename = profile.agentBasename?.trim() || null;
+
 	const cycleRecord = sanitizeCycleLogRecord({
 		cycleId,
 		mode,
@@ -442,6 +461,7 @@ export async function runTradeCycleInternal({
 			amountIn: effectiveAmountIn,
 			maxSlippageBps: effectiveMaxSlippageBps,
 		},
+		agentBasename,
 		...(operatorEns ? { operatorEns } : {}),
 		proposal,
 		riskDecision: logRiskDecision,
@@ -477,15 +497,12 @@ export async function runTradeCycleInternal({
 	});
 	debugLog(cycleId, "0G write job enqueued", { logPointer });
 
-	let displayReason: string | null = null;
-	if (riskDecision.decision === "REJECT") {
-		displayReason =
-			deterministicRisk.decision === "REJECT"
-				? deterministicRisk.reason
-				: computeRisk.reason;
-	} else if (proposal.action === "HOLD") {
-		displayReason = deterministicRisk.reason;
-	}
+	const displayReason = resolveDisplayReason({
+		computeRisk,
+		deterministicRisk,
+		proposalAction: proposal.action,
+		riskDecision,
+	});
 
 	debugLog(cycleId, "success", {
 		ms: Date.now() - startedAt,

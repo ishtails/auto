@@ -85,6 +85,11 @@ export interface KeeperExecutionResult {
 }
 
 export interface CycleLogRecord {
+	/**
+	 * Optional human-readable agent identity (Basename / ENSIP-19) saved to the DB
+	 * via `setVaultAgentBasename`. Included in durable 0G logs when present.
+	 */
+	agentBasename?: string | null;
 	cycleId: string;
 	execution: KeeperExecutionResult | null;
 	input: RunTradeCycleInput;
