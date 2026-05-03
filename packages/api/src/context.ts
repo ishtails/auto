@@ -27,10 +27,28 @@ export interface TradeCycleState {
 }
 
 export interface DiagnosticsResult {
-	axl: boolean;
+	/** One-liner for demos: Postgres vs 0G. */
+	architecture: string;
+	dataPlane: {
+		postgres: string;
+		zeroG: string;
+	};
 	keeperhub: boolean;
-	og: boolean;
+	links: { storageExplorer: string };
+	/** @deprecated use `zeroGStorage.kvReachable` */
+	og?: boolean;
+	/** 0G Compute Router (`/v1/models`) reachable with `OG_COMPUTE_ROUTER_API_KEY`, or not required when `MOCK_RISK_AGENT`. */
+	ogComputeRouter: boolean;
 	ok: boolean;
+	zeroGStorage: {
+		kvReachable: boolean;
+		lastWrite: null | {
+			isoTime: string;
+			pointer: string;
+			rootHash?: string;
+			txHash?: string;
+		};
+	};
 }
 
 export interface VaultConfig {
@@ -85,8 +103,16 @@ export interface IntegrationServices {
 	logCycle: (
 		record: CycleLogRecord,
 		vaultConfig: VaultConfig
-	) => Promise<string>;
-	sendToRiskAgent: (proposal: TradeProposal) => Promise<RiskDecision>;
+	) => Promise<{
+		logPointer: string;
+	}>;
+	sendToRiskAgent: (
+		proposal: TradeProposal,
+		context: {
+			cycleId: string;
+			deterministicRisk: RiskDecision;
+		}
+	) => Promise<RiskDecision>;
 }
 
 export type AuthResult =

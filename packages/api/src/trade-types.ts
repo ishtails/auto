@@ -90,6 +90,21 @@ export interface CycleLogRecord {
 	input: RunTradeCycleInput;
 	/** How this cycle was run (UI labeling). */
 	mode?: "suggest" | "dryRun" | "live";
+	/**
+	 * Durable audit entry on **0G Storage (KV)** for this vault stream.
+	 * Postgres mirrors the full row for fast UI; this is the canonical pointer + on-chain batch metadata when available.
+	 */
+	ogStorage?: {
+		pointer: string;
+		/** Merkle / batch root from the 0G SDK when the KV write completes. */
+		rootHash?: string;
+		/** L1 tx that committed the KV batch (Galileo / testnet explorer). */
+		txHash?: string;
+		/** True while the KV row is committed but batch proof is still landing in Postgres. */
+		pending?: boolean;
+		/** Set when a background proof write fails after the HTTP cycle returned 200. */
+		lastError?: string;
+	};
 	proposal: TradeProposal;
 	riskDecision: RiskDecision;
 	route: {
