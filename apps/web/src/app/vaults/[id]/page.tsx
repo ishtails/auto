@@ -333,7 +333,7 @@ export default function VaultDetailPage() {
 			}}
 		>
 			<main className="min-h-screen bg-[#131313] text-[#e2e2e2]">
-				<div className="mx-auto w-full max-w-[1000px] px-6 py-12 md:px-10 md:py-16">
+				<div className="mx-auto w-full max-w-6xl px-6 py-12 md:px-10 md:py-16">
 					<Link
 						className="mb-8 flex items-center gap-2 font-manrope text-[#a38c85] text-sm transition-colors hover:text-[#f5f5f2]"
 						href="/vaults"
@@ -448,12 +448,6 @@ export default function VaultDetailPage() {
 										<DropdownMenuLabel className="font-manrope text-[#a38c85] text-xs uppercase tracking-[0.08em]">
 											Actions
 										</DropdownMenuLabel>
-										<DropdownMenuItem
-											className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
-											onSelect={() => setFundSheetOpen(true)}
-										>
-											Fund vault
-										</DropdownMenuItem>
 										<DropdownMenuSeparator className="bg-[#2a2a2a]" />
 										<DropdownMenuItem
 											className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"

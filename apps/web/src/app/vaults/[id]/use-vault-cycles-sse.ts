@@ -30,14 +30,12 @@ async function streamVaultCycles({
 	vaultId,
 	token,
 	signal,
-	onHistory,
 	onCycle,
 }: {
 	serverBase: string;
 	vaultId: string;
 	token: string;
 	signal: AbortSignal;
-	onHistory: (records: CycleLogRecord[]) => void;
 	onCycle: (record: CycleLogRecord) => void;
 }): Promise<void> {
 	const res = await fetch(
@@ -76,7 +74,8 @@ async function streamVaultCycles({
 			}
 
 			if (evt.event === "history") {
-				onHistory(JSON.parse(evt.data) as CycleLogRecord[]);
+				// Initial snapshot: infinite query loads paginated history. We only
+				// use SSE for incremental `cycle` events (see Hono streamSSE + poll loop).
 				continue;
 			}
 
@@ -88,11 +87,8 @@ async function streamVaultCycles({
 }
 
 /**
- * Live SSE feed for a vault's most recent cycles.
- *
- * - `history` is intentionally capped server-side (default 10)
- * - new `cycle` events arrive in real time
- * - older history should be loaded via paginated RPC (see `useVaultCycleFeed`)
+ * Incremental cycle rows from the server SSE stream (`cycle` events only).
+ * History is served by `getVaultCycleLogs` (TanStack infinite query).
  */
 export function useVaultCyclesSse({
 	vaultId,
@@ -101,9 +97,11 @@ export function useVaultCyclesSse({
 	vaultId: string;
 	enabled: boolean;
 }): CycleLogRecord[] {
-	const [cycles, setCycles] = useState<CycleLogRecord[]>([]);
+	const [pushes, setPushes] = useState<CycleLogRecord[]>([]);
 
 	useEffect(() => {
+		setPushes([]);
+
 		if (!enabled) {
 			return;
 		}
@@ -125,9 +123,14 @@ export function useVaultCyclesSse({
 					vaultId,
 					token,
 					signal: controller.signal,
-					onHistory: (records) => setCycles(records),
-					onCycle: (record) =>
-						setCycles((prev) => [...prev, record].slice(-10)),
+					onCycle: (record) => {
+						setPushes((prev) => {
+							if (prev.some((r) => r.cycleId === record.cycleId)) {
+								return prev;
+							}
+							return [record, ...prev].slice(0, 50);
+						});
+					},
 				});
 			})
 			.catch(() => {
@@ -139,5 +142,5 @@ export function useVaultCyclesSse({
 		};
 	}, [enabled, vaultId]);
 
-	return cycles;
+	return pushes;
 }

@@ -133,6 +133,9 @@ export function ManualCycleSheet() {
 							input: { vaultId },
 						}).queryKey,
 					});
+					await queryClient.invalidateQueries({
+						queryKey: ["vault-cycle-logs", vaultId],
+					});
 				},
 				onError: (error) => {
 					setLastError(error.message);

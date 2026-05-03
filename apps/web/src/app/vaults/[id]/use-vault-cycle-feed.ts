@@ -5,7 +5,7 @@ import type {
 	GetVaultCycleLogsOutput,
 } from "@auto/api/trade-types";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { client } from "@/utils/orpc";
 import { useVaultCyclesSse } from "./use-vault-cycles-sse";
 
@@ -14,7 +14,6 @@ const PAGE_SIZE = 10;
 type Cursor = NonNullable<GetVaultCycleLogsOutput["nextCursor"]>;
 
 const parseCycleLogRecord = (unknownRecord: unknown): CycleLogRecord | null => {
-	// Records are written by our server; treat parse as best-effort.
 	if (!unknownRecord || typeof unknownRecord !== "object") {
 		return null;
 	}
@@ -33,29 +32,7 @@ export function useVaultCycleFeed({
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 } {
-	const [live, setLive] = useState<CycleLogRecord[]>([]);
-	const seenLive = useRef<Set<string>>(new Set());
-
-	// Keep SSE for new events (history is capped server-side to 10).
-	const sseCycles = useVaultCyclesSse({ vaultId, enabled });
-
-	useEffect(() => {
-		if (sseCycles.length === 0) {
-			return;
-		}
-		// Only treat "cycle" pushes as live additions. SSE history will overlap with DB pages.
-		const newest = sseCycles.at(-1);
-		if (!newest) {
-			return;
-		}
-		setLive((prev) => {
-			if (seenLive.current.has(newest.cycleId)) {
-				return prev;
-			}
-			seenLive.current.add(newest.cycleId);
-			return [newest, ...prev].slice(0, 50);
-		});
-	}, [sseCycles]);
+	const sseLive = useVaultCyclesSse({ vaultId, enabled });
 
 	const infinite = useInfiniteQuery({
 		queryKey: ["vault-cycle-logs", vaultId],
@@ -86,7 +63,7 @@ export function useVaultCycleFeed({
 
 	const cycles = useMemo(() => {
 		const map = new Map<string, CycleLogRecord>();
-		for (const record of live) {
+		for (const record of sseLive) {
 			map.set(record.cycleId, record);
 		}
 		for (const record of dbCycles) {
@@ -98,7 +75,7 @@ export function useVaultCycleFeed({
 			(a, b) =>
 				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
 		);
-	}, [dbCycles, live]);
+	}, [dbCycles, sseLive]);
 
 	return {
 		cycles,

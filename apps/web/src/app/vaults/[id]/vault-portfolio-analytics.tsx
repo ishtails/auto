@@ -2,12 +2,7 @@
 
 import { isAllowlistTokenKey } from "@auto/api/token-dex-reference";
 import type { GetVaultBalancesOutput } from "@auto/api/vault-types";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@auto/ui/components/card";
+import { Card, CardContent } from "@auto/ui/components/card";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -98,9 +93,9 @@ function portfolioChartPanel(input: {
 	}
 	return (
 		<ChartContainer
-			className="aspect-square min-h-[200px] w-full max-w-[220px] [&>div]:aspect-square"
+			className="aspect-square min-h-[200px] w-full max-w-[300px] [&>div]:aspect-square"
 			config={chartConfig}
-			initialDimension={{ height: 220, width: 220 }}
+			initialDimension={{ height: 300, width: 300 }}
 		>
 			<PieChart>
 				<ChartTooltip
@@ -142,24 +137,14 @@ function portfolioChartPanel(input: {
 					cy="50%"
 					data={chartData}
 					dataKey="value"
-					innerRadius={52}
+					innerRadius={60}
 					nameKey="name"
-					outerRadius={78}
+					outerRadius={100}
 					stroke="transparent"
 				/>
 			</PieChart>
 		</ChartContainer>
 	);
-}
-
-function portfolioPriceFootnote(isError: boolean, useUsdPie: boolean): string {
-	if (isError) {
-		return "Live prices failed to load; chart uses on-chain amounts.";
-	}
-	if (useUsdPie) {
-		return "Pie slices ≈ USD value (DexScreener, Base mainnet reference).";
-	}
-	return "USD estimate unavailable for at least one holding; chart uses raw token amounts.";
 }
 
 function formatTokenAmount(wei: string, decimals: number): string {
@@ -248,21 +233,10 @@ export function VaultPortfolioAnalytics({
 		value: row.weight,
 	}));
 
-	const priceFootnote = portfolioPriceFootnote(priceQuery.isError, useUsdPie);
-
 	return (
 		<Card className="border-[#55433d] bg-[#1b1b1b]">
-			<CardHeader className="pb-2">
-				<CardTitle className="font-manrope text-[#a38c85] text-xs uppercase tracking-widest">
-					Portfolio analytics
-				</CardTitle>
-				<p className="font-manrope text-[#6b5d58] text-xs leading-relaxed">
-					Hub balance is trade-sized in cycles; other rows are allowlisted
-					assets. {priceFootnote}
-				</p>
-			</CardHeader>
 			<CardContent>
-				<div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+				<div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
 					<div className="min-w-0 flex-1 space-y-6">
 						<div>
 							<p className="font-manrope text-[#a38c85] text-[10px] uppercase tracking-[0.08em]">
@@ -377,7 +351,7 @@ export function VaultPortfolioAnalytics({
 									? "Portfolio mix by USD value"
 									: "Portfolio mix by token amount"
 							}
-							className="w-full max-w-[220px]"
+							className="w-full max-w-[300px]"
 							role="img"
 						>
 							{portfolioChartPanel({

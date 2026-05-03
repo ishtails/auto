@@ -228,13 +228,13 @@ export function CycleLogEntry({
 		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<p className="font-manrope text-[#6b5d58] text-xs">
-						{new Date(entry.timestamp).toLocaleString(undefined, {
-							dateStyle: "medium",
-							timeStyle: "short",
-						})}
+					<p
+						className="mt-0.5 select-all break-all font-mono text-[#ffb59e] text-xs leading-snug"
+						title={entry.cycleId}
+					>
+						ID: {entry.cycleId}
 					</p>
-					<h3 className="mt-2 font-newsreader text-[#f5f5f2] text-xl leading-snug">
+					<h3 className="mt-3 font-newsreader text-[#f5f5f2] text-xl leading-snug">
 						{presentation.headline}
 					</h3>
 					<p className="mt-1 max-w-prose font-manrope text-[#a38c85] text-sm leading-relaxed">
@@ -333,16 +333,32 @@ export function CycleLogEntry({
 			) : null}
 
 			{entry.execution?.txHash ? (
-				<a
-					className="mt-4 inline-flex items-center gap-1.5 font-manrope text-[#ffb59e] text-sm underline-offset-4 hover:underline"
-					href={baseScanTxUrl(entry.execution.txHash)}
-					rel="noopener noreferrer"
-					target="_blank"
-				>
-					Transaction
-					<ExternalLink aria-hidden className="size-3.5 opacity-80" />
-				</a>
-			) : null}
+				<div className="flex justify-between">
+					<a
+						className="mt-4 inline-flex items-center gap-1.5 font-manrope text-[#ffb59e] text-sm underline-offset-4 hover:underline"
+						href={baseScanTxUrl(entry.execution.txHash)}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						BaseScan
+						<ExternalLink aria-hidden className="size-3.5 opacity-80" />
+					</a>
+
+					<p className="mt-4 text-right font-manrope text-[#6b5d58] text-xs">
+						{new Date(entry.timestamp).toLocaleString(undefined, {
+							dateStyle: "medium",
+							timeStyle: "short",
+						})}
+					</p>
+				</div>
+			) : (
+				<p className="mt-4 text-right font-manrope text-[#6b5d58] text-xs">
+					{new Date(entry.timestamp).toLocaleString(undefined, {
+						dateStyle: "medium",
+						timeStyle: "short",
+					})}
+				</p>
+			)}
 		</li>
 	);
 }
