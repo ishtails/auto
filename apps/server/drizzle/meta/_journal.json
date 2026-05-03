@@ -8,6 +8,20 @@
       "when": 1777630820373,
       "tag": "0000_sticky_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778000000000,
+      "tag": "0001_rename_autopilot_executor_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778100000000,
+      "tag": "0002_agent_profiles_schedule",
+      "breakpoints": true
     }
   ]
 }

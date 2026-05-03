@@ -91,7 +91,8 @@ export const agentProfiles = pgTable("agent_profiles", {
 		.references(() => vaults.id),
 	name: text("name").notNull(),
 	geminiSystemPrompt: text("gemini_system_prompt").notNull(),
-	autopilot: boolean("autopilot").notNull().default(false),
+	/** When true, trade cycles may execute on-chain when risk approves (vs suggestions-only). */
+	executorEnabled: boolean("executor_enabled").notNull().default(false),
 	maxTradeBps: integer("max_trade_bps").notNull(),
 	maxSlippageBps: integer("max_slippage_bps").notNull(),
 	tokenIn: text("token_in").notNull(), // hex address
@@ -104,6 +105,10 @@ export const agentProfiles = pgTable("agent_profiles", {
 		.defaultNow()
 		.notNull()
 		.$onUpdate(() => new Date()),
+	/** 0 = off. Otherwise one of `SCHEDULE_CADENCE_SECONDS` presets (see @auto/api/schedule-cadence). */
+	scheduleCadenceSeconds: integer("schedule_cadence_seconds").notNull().default(0),
+	/** Next scheduled trade cycle (UTC). Null when schedule is off. */
+	scheduleNextRunAt: timestamp("schedule_next_run_at", { withTimezone: true }),
 });
 
 export const agentProfilesRelations = relations(agentProfiles, ({ one }) => ({

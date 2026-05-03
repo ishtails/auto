@@ -11,12 +11,15 @@ import { registerCycleStreamRoutes } from "./router/cycle-stream";
 import { createIntegrationServices } from "./services/trade-cycle-services";
 import "./services/deploy-queue";
 import { startupSync } from "./services/startup-sync";
+import { startVaultScheduler } from "./services/vault-scheduler";
 
 // Start background services
 startupSync().catch(console.error);
 
 const app = new Hono();
 const integrationServices = createIntegrationServices();
+startVaultScheduler(integrationServices);
+
 const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [
 		onError((error) => {
