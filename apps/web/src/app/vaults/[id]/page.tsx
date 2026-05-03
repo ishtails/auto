@@ -22,7 +22,12 @@ import {
 	SheetTitle,
 } from "@auto/ui/components/sheet";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	type QueryClient,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {
 	ChevronLeft,
 	Droplet,
@@ -37,14 +42,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-	createWalletClient,
-	custom,
-	formatEther,
-	isAddress,
-	parseEther,
-} from "viem";
+import { formatEther, isAddress, parseEther } from "viem";
 import { baseSepolia } from "viem/chains";
+import {
+	getPrivyWalletClient,
+	isPrivyEmbeddedWalletRpcNoiseError,
+	type PrivyWalletLike,
+} from "@/lib/privy-wallet-client";
 import { orpc } from "@/utils/orpc";
 import { EditAgentSheet } from "./edit-agent-sheet";
 import { LiveActivityCard } from "./live-activity-card";
@@ -64,18 +68,72 @@ const baseScanTxUrl = (txHash: string): string =>
 const BASE_SEPOLIA_FAUCET_URL =
 	"https://portal.cdp.coinbase.com/products/faucet" as const;
 
-interface PrivyWalletLike {
-	address?: string;
-	getEthereumProvider: () => Promise<unknown>;
+async function invalidateVaultAndOperatorBalance(
+	queryClient: QueryClient,
+	vaultId: string,
+	operatorAddress: string
+) {
+	await queryClient.invalidateQueries({
+		queryKey: orpc.getVaultBalancesByVaultId.queryOptions({
+			input: { vaultId },
+		}).queryKey,
+	});
+	await queryClient.invalidateQueries({
+		queryKey: ["wallet-native-balance", operatorAddress],
+	});
 }
 
-const getPrivyWalletClient = async (wallet: PrivyWalletLike) => {
-	const provider = await wallet.getEthereumProvider();
-	return createWalletClient({
+async function submitVaultDepositEth(
+	wallet: PrivyWalletLike & { address: string },
+	vaultAddress: `0x${string}`,
+	value: bigint
+) {
+	const walletClient = await getPrivyWalletClient(wallet);
+	await walletClient.writeContract({
+		chain: baseSepolia,
 		account: wallet.address as `0x${string}`,
-		transport: custom(provider as Parameters<typeof custom>[0]),
+		address: vaultAddress,
+		abi: USER_VAULT_ABI,
+		functionName: "depositETH",
+		args: [],
+		value,
 	});
-};
+}
+
+function parsePositiveEthAmountWei(
+	fundAmountEth: string
+): { ok: true; value: bigint } | { ok: false; message: string } {
+	try {
+		const value = parseEther(fundAmountEth || "0");
+		if (value <= BigInt(0)) {
+			return { ok: false, message: "Amount must be greater than zero." };
+		}
+		return { ok: true, value };
+	} catch {
+		return { ok: false, message: "Invalid amount." };
+	}
+}
+
+function VaultDetailEditSheet({
+	onOpenChange,
+	open,
+	vaultAddress,
+	vaultId,
+}: {
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+	vaultAddress: string | null | undefined;
+	vaultId: string;
+}) {
+	return (
+		<EditAgentSheet
+			onOpenChange={onOpenChange}
+			open={open}
+			vaultAddress={vaultAddress ?? null}
+			vaultId={vaultId}
+		/>
+	);
+}
 
 async function withdrawVaultTokens(
 	walletClient: Awaited<ReturnType<typeof getPrivyWalletClient>>,
@@ -209,42 +267,37 @@ export default function VaultDetailPage() {
 			return;
 		}
 
-		let value: bigint;
-		try {
-			value = parseEther(fundAmountEth || "0");
-		} catch {
-			toast.error("Invalid amount.");
-			return;
-		}
-		if (value <= BigInt(0)) {
-			toast.error("Amount must be greater than zero.");
+		const parsedAmount = parsePositiveEthAmountWei(fundAmountEth);
+		if (!parsedAmount.ok) {
+			toast.error(parsedAmount.message);
 			return;
 		}
 
 		setIsFunding(true);
 		try {
-			const walletClient = await getPrivyWalletClient(wallet);
-			await walletClient.writeContract({
-				chain: baseSepolia,
-				account: wallet.address as `0x${string}`,
-				address: vaultAddress,
-				abi: USER_VAULT_ABI,
-				functionName: "depositETH",
-				args: [],
-				value,
-			});
+			await submitVaultDepositEth(
+				wallet as PrivyWalletLike & { address: string },
+				vaultAddress as `0x${string}`,
+				parsedAmount.value
+			);
 			toast.success("ETH deposited; vault holds WETH.");
-			await queryClient.invalidateQueries({
-				queryKey: orpc.getVaultBalancesByVaultId.queryOptions({
-					input: { vaultId },
-				}).queryKey,
-			});
-			await queryClient.invalidateQueries({
-				queryKey: ["wallet-native-balance", wallet.address],
-			});
+			await invalidateVaultAndOperatorBalance(
+				queryClient,
+				vaultId,
+				wallet.address
+			);
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			toast.error(message);
+			if (isPrivyEmbeddedWalletRpcNoiseError(error)) {
+				toast.success("ETH deposited; vault holds WETH.");
+				await invalidateVaultAndOperatorBalance(
+					queryClient,
+					vaultId,
+					wallet.address
+				);
+			} else {
+				const message = error instanceof Error ? error.message : String(error);
+				toast.error(message);
+			}
 		} finally {
 			setIsFunding(false);
 		}
@@ -298,8 +351,20 @@ export default function VaultDetailPage() {
 				queryKey: orpc.listVaults.queryOptions().queryKey,
 			});
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			toast.error(message);
+			if (isPrivyEmbeddedWalletRpcNoiseError(error)) {
+				toast.success("Withdraw submitted.");
+				await queryClient.invalidateQueries({
+					queryKey: orpc.getVaultBalancesByVaultId.queryOptions({
+						input: { vaultId },
+					}).queryKey,
+				});
+				await queryClient.invalidateQueries({
+					queryKey: orpc.listVaults.queryOptions().queryKey,
+				});
+			} else {
+				const message = error instanceof Error ? error.message : String(error);
+				toast.error(message);
+			}
 		} finally {
 			setIsWithdrawing(false);
 		}
@@ -426,7 +491,7 @@ export default function VaultDetailPage() {
 								type="button"
 							>
 								<RefreshCcw className="size-4" />
-								Run trade cycle
+								Trade
 							</Button>
 
 							<DropdownMenu>
@@ -461,6 +526,7 @@ export default function VaultDetailPage() {
 											<Pencil className="mr-2 size-4 text-[#a38c85]" />
 											Edit agent
 										</DropdownMenuItem>
+										<DropdownMenuSeparator className="bg-[#2a2a2a]" />
 										<DropdownMenuItem
 											className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
 											disabled={isWithdrawing || balances.isLoading}
@@ -611,9 +677,10 @@ export default function VaultDetailPage() {
 					</div>
 				</div>
 			</main>
-			<EditAgentSheet
+			<VaultDetailEditSheet
 				onOpenChange={setEditAgentSheetOpen}
 				open={editAgentSheetOpen}
+				vaultAddress={vault?.vaultAddress}
 				vaultId={vaultId}
 			/>
 		</VaultDetailProvider>
