@@ -44,7 +44,7 @@ If you’re skimming for integrations, the next section maps each of those steps
 
 ## Integration map (skim this)
 
-Note: Complete builder feedback logs for **Uniswap** and **KeeperHub** are available in `[FEEDBACK.md](./FEEDBACK.md)`.
+Note: All builder feedback (**0G**, **Uniswap**, **KeeperHub**, **ENS / Basenames**) is in [`FEEDBACK.md`](./FEEDBACK.md).
 
 Each row is something you can run, click, or grep in the repo.
 
@@ -89,7 +89,7 @@ ENS integration is **read-only** and **best-effort**: we never block vault flows
 
 We **verify** optional **`*.base.eth`** names against the **vault contract address** (forward resolution on Base) and store a normalized link in the agent profile. **Reverse** display in the UI relies on a **primary** name for that address (ENSIP-19 via mainnet resolver + chain `coinType`); **transferring** a name to the vault does **not** by itself set **primary**, and the Basenames flows we used did not give us a clear way to set **primary for a smart contract** the way ENS manager does for EOAs. We therefore often fall back to the **DB-linked** name after a successful save, not automatic on-chain reverse.
 
-For **honest partner-facing notes** (use case, what we tried, economics of staying on Base vs L1, wishlist for ENS/Base), see **[`docs/builder-feedback.md`](./docs/builder-feedback.md)** — section **ENS & Basenames — builder feedback**.
+For **partner-facing ENS / Basenames notes** (use case, primary-name gap, L2 economics, wishlist), see **[`FEEDBACK.md`](./FEEDBACK.md)** — **ENS & Basenames — builder feedback**.
 
 ---
 
@@ -176,9 +176,9 @@ bun run check-types
 | **0G Compute** | `OG_COMPUTE_ROUTER_API_KEY`                                                                               | Required for a real verifier unless `MOCK_RISK_AGENT=true`   |
 | Execution      | `KEEPERHUB_`*, `UNISWAP_ROUTER_ADDRESS`, chain RPC                                                        | `MOCK_EXECUTION=true` fakes a successful swap                |
 | Web            | `NEXT_PUBLIC_SERVER_URL`                                                                                  | Must point at your API                                       |
-| **ENS** (optional) | `ETH_MAINNET_RPC_URL`, `NEXT_PUBLIC_ETH_MAINNET_RPC_URL`                                            | Override L1 RPC for `getEnsName` / `getEnsAvatar`; defaults are fine for most dev |
+| **ENS** (optional) | `ETH_MAINNET_RPC_URL`, `NEXT_PUBLIC_ETH_MAINNET_RPC_URL`                                            | Override L1 RPC for `getEnsName` / `getEnsAvatar` (browser RPCs can be rate-limited) |
 
-More detail: `[docs/integrations.md](./docs/integrations.md)` and `[packages/env](./packages/env)`.
+More detail (internal): `docs/integrations.md` and `packages/env`.
 
 ---
 
@@ -194,7 +194,7 @@ auto/
 └── docs/              # Deeper notes (overview, integrations, roadmap)
 ```
 
-Further reading: `[docs/overview.md](./docs/overview.md)` · `[docs/integrations.md](./docs/integrations.md)` · `[FEEDBACK.md](./FEEDBACK.md)`
+Further reading: [`FEEDBACK.md`](./FEEDBACK.md)
 
 ---
 
@@ -217,15 +217,3 @@ Stack: TypeScript, Turborepo, Bun, Next.js, Hono, oRPC, Drizzle + Postgres, `@0g
 ## Security
 
 Do not commit real `.env` files or private keys. Treat `OG_PRIVATE_KEY`, `KEEPERHUB_API_KEY`, `GEMINI_API_KEY`, and `OG_COMPUTE_ROUTER_API_KEY` as server-only secrets.
-
----
-
-## Team & license
-
-
-|                |                                  |
-| -------------- | -------------------------------- |
-| Team / contact | *Add names and how to reach you* |
-| License        | *Add your license if applicable* |
-
-

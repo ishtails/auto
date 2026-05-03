@@ -1,26 +1,10 @@
-# AI Attribution Log
+# AI Attribution
 
-This repository uses AI tooling (e.g. Cursor, LLMs) during development.
+This project was built with AI assistance, with the developer retaining architectural control.
 
-## How to use this log
+- **Primary IDE/workflow**: Cursor (agent skills + Cursor rules), used to accelerate implementation, refactors, and verification against sponsor documentation.
+- **How AI was used**: AI agents were treated as workhorses that follow developer-specified patterns and constraints; the developer made final architectural decisions and reviewed changes.
+- **Research loop**: Gemini + search were used to understand new technologies and integration docs and to pressure-test assumptions before coding.
+- **Delivery loop**: Internal requirement docs/roadmaps/progress notes guided implementation; the repo was scaffolded with Better TStack for a type-safe monorepo and customized with project Cursor configuration for secure rapid DX.
 
-- Add an entry **each time** AI materially contributes to code, copy, assets, or specs.
-- Link to the **exact file(s)** and, when possible, the **specific sections** (function/component names or line ranges).
-- If AI created something and you later edited it heavily, record both: **initial generation** and **subsequent edits**.
-
-## Entries
-
-### YYYY-MM-DD — <short title>
-
-- **Tool(s)**: Cursor / ChatGPT / Copilot / other
-- **Model (if known)**: TODO
-- **Prompt / intent**: TODO
-- **Files touched (paths)**:
-  - TODO
-- **What AI produced**:
-  - TODO
-- **What a human changed afterwards**:
-  - TODO
-- **Notes / caveats**:
-  - TODO
-
+No private keys or secrets were generated or committed as part of this workflow.

@@ -1,12 +1,92 @@
 # Sponsor integrations — builder feedback
 
-Submitted for **Uniswap Foundation** and **KeeperHub** builder feedback. Each section is independent.
+Honest notes for partners we integrated while shipping autonomous vault agents on Base: **0G** (Storage + Compute), **Uniswap Foundation** (Trading API / routing), **KeeperHub** (execution), and **ENS / Basenames** (Ethereum L1 + Base naming). Each section is independent—same outline where it helps: **context → friction → surprises / what we shipped → suggestions → code pointers**.
+
+---
+
+# 0G (Storage + Compute) — builder feedback
+
+Thank you for **Storage (KV + DA)** and **Compute Router**—they let us tell a credible “propose → verify → execute → prove” story for autonomous vault agents. The notes below are **observations from shipping**, not a punch list.
+
+## 1. Context: how we use 0G
+
+We run **trade cycles** from a Bun/TypeScript server: an LLM proposes a swap, **deterministic risk** runs first, then **0G Compute Router** can **audit** the proposal JSON (`APPROVE` / `REJECT`). When a cycle completes, we persist a structured **`CycleLogRecord`** to **0G Storage** in two complementary ways:
+
+| Layer | Role |
+| ----- | ---- |
+| **KV (Batcher + stream keys)** | Nimble stream state: `latest`, `idx:…`, per-cycle `c:{cycleId}` keys; pointer + optional batch **txHash** / **rootHash** when the SDK finishes. |
+| **DA blob (`MemData` + `Indexer.upload`)** | Full JSON envelope per cycle (optional via env; default **on** in our stack). |
+| **Postgres** | Queryable cache + SSE so the UI stays fast when indexer/KV reads are slow or flaky. |
+| **Background worker** | `bunqueue` job merges **KV proof** (and **DA** patch) after the HTTP cycle returns so we don’t block the request on long-running storage finality. |
+
+We use **`@0gfoundation/0g-ts-sdk`**, **[Galileo Storage Scan](https://storagescan-galileo.0g.ai)** for demos, and the **portal** (`pc.testnet.0g.ai`) for Compute Router keys/credits.
+
+**What helped (brief):** The **OpenAI-compatible** Router surface made the verifier stage easy to wire; the **Storage SDK** patterns (Batcher, KvClient, indexer node selection) matched the docs well enough to iterate; having a **public explorer** for testnet batches made judge-facing demos possible.
+
+## 2. Pain points and onboarding friction
+
+### Testnet funding (faucet)
+
+During setup the **official 0G testnet faucet** did **not work** for us (failed or unusable in practice). We had to fund the storage signer through **alternate routes**—including a **Google**-hosted / community faucet workflow—before we could exercise **KV** and on-chain batch flows reliably. When the **first** step of an integration is “get native tokens,” a broken or flaky faucet burns a lot of trust and calendar.
+
+**Nudge:** A **status** or **fallback** note on the faucet page (and a second supported path when primary is down) would help the next team avoid the same detour.
+
+### Many knobs must agree at once
+
+Getting to a first successful KV batch required aligning **`OG_RPC_URL`**, **`OG_INDEXER_RPC`** (turbo vs standard), **`OG_KV_ENDPOINT`**, **`OG_FLOW_CONTRACT`**, **`OG_PRIVATE_KEY`**, and stream id—plus **enough balance** on the signer for **both** KV batches and (when enabled) **DA** uploads. The mental model is right for production, but a **single “first green path” checklist** (URLs + one contract address table per network + “fund this key for N txs”) would shorten time-to-first-proof.
+
+### Indexer / node selection and latency
+
+Our logger calls **`indexer.selectNodes`**. When selection fails or returns no nodes, we **degrade gracefully** (stable **pointer** for the UI, but no **txHash** / **rootHash** yet)—which is correct, but it took iteration to distinguish “our bug” vs “network temporarily empty.” The SDK can also sit on **“waiting for storage node to sync”** for a long time; we **timeout** HTTP-facing writes (default **30s**) and finish proof in a **background worker**, but that split behavior is easy to misunderstand without docs calling out **expected tail latency**.
+
+**Nudge:** Any **documented** typical delay bands or **health** hints for testnet indexers would reduce superstition on our side.
+
+### Dual storage = dual costs / dual txs
+
+With **`OG_DA_CYCLE_TRACE`** defaulting **on**, a single cycle can imply **KV batch work** plus a **DA** upload—two reasons to keep the signer funded and two things to explain in demos. We like the pattern; we mention it only because **pricing/funding docs** that speak to “KV + blob in one breath” would help teams budget testnet runs.
+
+### Compute Router: keys, models, and JSON mode
+
+The Router is **great once configured**, but we still had to learn:
+
+- **Credits / API key** flow from the portal (separate from Storage funding).
+- **`response_format: json_object`** compatibility varies by **model**—we expose **`OG_COMPUTE_ROUTER_JSON_MODE`** to turn JSON mode off when a catalog model rejects it.
+- **HTTP errors** from the Router are sometimes **thin** on the client—we log status + body slice, but friendlier structured errors would speed up “wrong key vs wrong model vs rate limit.”
+
+## 3. Surprises we validated in code
+
+- **Long `OG_KV_STREAM_ID` strings** — The SDK/KV path expects a **32-byte** stream key shape in places; we **hash** the configured stream id with **`keccak256(utf8Bytes)`** to avoid **RangeError**s—worth a **footnote** in Storage docs for anyone using human-readable stream names.
+- **Pointer without proof** — We intentionally return a **deterministic pointer** (`streamId:cycleId`) even when the batch times out or node selection fails, so the UI and Postgres row stay **correlatable** with explorer searches later.
+- **`MOCK_RISK_AGENT`** — Skipping the Router is essential for **local** demos without Compute keys; we document it loudly so judges don’t confuse “mock” with “0G broken.”
+
+## 4. Things that would make our lives easier
+
+Wishlist-style—not demands:
+
+- **Faucet reliability + transparency** (see above).
+- **One-page “testnet happy path”** — RPC + indexer + KV + flow contract + minimum signer balance + link to explorer.
+- **Router errors** — Slightly richer, machine-readable hints (key, quota, model id).
+- **Indexer health** — Public **degraded** banners or a small **status** endpoint teams can curl before blaming their own code.
+
+## 5. Implementation pointers (for reviewers)
+
+| Concern | Location |
+| ------- | -------- |
+| KV write + batch timeout / telemetry | `apps/server/src/integrations/og-logger.ts` |
+| DA blob upload (`MemData` + `Indexer.upload`) | `apps/server/src/integrations/og-cycle-da-blob.ts` |
+| Background KV/DA merge + Postgres patch | `apps/server/src/services/og-cycle-log-queue.ts` |
+| Compute Router verifier (HTTP + JSON) | `apps/server/src/integrations/og-compute-verifier.ts` · `og-compute-risk.ts` |
+| Trade cycle orchestration + enqueue | `apps/server/src/router/run-trade-cycle.ts` |
+| Trading memory read from KV (verifier context) | `apps/server/src/services/trading-memory-source.ts` |
+| Env | `OG_*`, `MOCK_RISK_AGENT` in `packages/env/src/server.ts` |
+
+Thank you again for 0G—we’re glad we could ship **real** Storage + Compute touches alongside the rest of the stack; the friction above is offered in the spirit of “this would have saved us time.”
 
 ---
 
 # Uniswap Developer Platform
 
-Focus: **honest friction** from our real integration. Outline matches **KeeperHub** below (**context → pain points → surprises → gentle suggestions → code pointers**). We’re genuinely thankful for both stacks—a short “what helped” note sits at the end of section 1.
+Focus: **honest friction** from our real integration. We’re genuinely thankful for the stack—a short “what helped” note sits at the end of section 1.
 
 ## 1. Context: our integration
 
@@ -150,4 +230,64 @@ No expectations—these are directions we’d **celebrate** if they ever lined u
 | Labeled debug logs (`DEBUG=true`) | `integrationDebugLog(..., "Keeper Hub", ...)` in `apps/server/src/router/debug.ts`                     |
 
 
-Thank you again for KeeperHub; we’re rooting for you
+Thank you again for KeeperHub; we’re rooting for you.
+
+---
+
+# ENS & Basenames — builder feedback
+
+For **ENS (L1)** and **Basenames (`*.base.eth` on Base)**. We’re grateful for the protocols; below is where our **vault-as-agent** story rubbed against product and UX limits.
+
+## 1. Context
+
+We build **user-owned vault contracts** on **Base** (dev: **Base Sepolia**) with automation and execution on L2. We want **human-readable names** for the **vault address** (display, resolution, audit logs)—not only for the operator’s EOA.
+
+| Need | Why it matters |
+| ---- | -------------- |
+| **Display** | Memorable label next to `0x…`, not only an in-app DB name. |
+| **Resolution** | Prove a `*.base.eth` **forward-resolves** to the vault before we store a link. |
+| **Audit** | Cycle logs / storage can reference a stable public name when one exists. |
+| **Economics** | Agents run **high-frequency, low-margin** flows on **L2**; we won’t move the whole product to **L1** or **L1 Sepolia** just to chase naming—**gas would break autonomous profitability**. |
+
+**Already working:** **L1 ENS** for the **operator wallet** (`getEnsName` / `getEnsAvatar` on mainnet)—account menu and optional **`operatorEns`** on `CycleLogRecord`. **viem** behaved as documented. The hard gap is **Basenames + primary** for a **contract** vault, not “calling ENS.”
+
+## 2. Pain points: Basenames and “primary” for the vault
+
+We want something like **`agent.example.base.eth`** on the **vault contract**, with **forward** resolution to that address.
+
+- **We tried:** Transferring / assigning the Basename toward the vault and wiring **forward** checks in the app.
+- **What happened:** **Forward** (`name → address`) could match the vault for **verification**. **Reverse** / **primary** for display (ENSIP-19 via mainnet resolver + `coinType` for Base Sepolia) stayed **empty**: transfer/assignment did **not** give us a **primary Basename** on the vault in practice, so wallets and our UI path never saw a name “for this `0x`.”
+- **Framing:** **ENS (L1)** has familiar flows for **subnames** and **primary**. **Basenames** did not expose a **clear, reliable way** to set **primary for our smart contract** the way we need for **reverse** display. We’re **integration-complete** for the happy path (assign → verify → show → log) **when** the protocol and UI support primary for that address; we’re **blocked** on the **Basenames product surface** for **contract agents**.
+
+## 3. What we shipped
+
+- **Server:** Basenames registry **forward** resolution; **`setVaultAgentBasename`** only accepts names that resolve to the vault; **`agent_basename`** on the agent profile.
+- **Web:** Optional `*.base.eth` in edit-agent; client **ENSIP-19** reverse when a **primary** exists; **DB fallback** for display when reverse is empty.
+- **Cycles:** **`operatorEns`** remains **L1 operator** identity, not vault Basename—by design.
+
+## 4. Road not taken: L1 ENS → L2 “bridge” identity
+
+Binding **L1 `.eth` / subnames** and tunneling recognition to L2 (CCIP, dual resolution, custom UX) is likely **possible** but **too heavy** for our timebox: more resolver steps, user education, and failure modes.
+
+## 5. Economics (why not “just use L1”)
+
+Forcing **L1-only** naming or running the **agent’s economic core on L1 Sepolia** would make **gas and ops cost** dominate **small, frequent** agent actions. **L2-first** is the foundation; naming has to meet us **there**.
+
+## 6. Suggestions
+
+- **Basenames:** First-class **primary for contract addresses** (or one **“contract agents”** doc page if it already exists).
+- **Docs:** Short **“transfer ≠ primary ≠ reverse in apps”** note.
+- **Comparison:** Honest **Basenames vs ENS subnames + primary** table.
+- **Optional:** Endorsed way to **discover** `*.base.eth` **addr records** pointing at an address when **primary** is unset (indexer / pattern).
+
+## 7. Implementation pointers
+
+| Concern | Location |
+| ------- | -------- |
+| Forward Basename (server) | `apps/server/src/integrations/basenames-resolve.ts` |
+| Verify + persist basename | `setVaultAgentBasename` in `apps/server/src/router.ts` |
+| Client reverse + display merge | `apps/web/src/lib/read-address-base-basename.ts`, `apps/web/src/hooks/use-vault-address-display-name.ts` |
+| Operator ENS snapshot (cycles) | `apps/server/src/integrations/ens-operator-snapshot.ts` |
+| Operator ENS (UI) | `apps/web/src/hooks/use-operator-ens.ts` |
+
+Thank you to **ENS** and **Base**; we hope **L2 vault agents** get first-class naming without giving up **L2 economics**.

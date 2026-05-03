@@ -4,4 +4,4 @@
 - [`integrations.md`](./integrations.md) — integrations + minimal env vars
 - [`roadmap.md`](./roadmap.md) — longer-term vision
 - [`plan.md`](./plan.md) — **near-term checklist** (diagram, ENS, feedback, demo, README, deployment)
-- [`builder-feedback.md`](./builder-feedback.md) — draft notes for **0G** and **ENS** builder feedback
+- Partner / builder feedback — repo-root [`FEEDBACK.md`](../FEEDBACK.md) (**0G**, **Uniswap**, **KeeperHub**, **ENS / Basenames**)

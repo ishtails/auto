@@ -1,6 +1,6 @@
 # Roadmap / Vision
 
-This doc is for **longer-horizon ideas**. Active near-term tasks live in [`plan.md`](./plan.md) (architecture diagram, ENS integration, builder feedback drafts for 0G/ENS, demo video, README polish, deployment verification). **AXL is not on that path**—risk uses deterministic checks plus mock or optional wiring.
+This doc is for **longer-horizon ideas**. Active near-term tasks live in [`plan.md`](./plan.md) (architecture diagram, ENS integration, partner notes in repo-root [`FEEDBACK.md`](../FEEDBACK.md), demo video, README polish, deployment verification). **AXL is not on that path**—risk uses deterministic checks plus mock or optional wiring.
 
 ## Submission / docs backlog (manual)
 
