@@ -74,6 +74,9 @@ export function useVaultCycleFeed({
 			if (og.rootHash?.trim()) {
 				n += 4;
 			}
+			if (og.daRootHash?.trim()) {
+				n += 3;
+			}
 			if (!og.pending) {
 				n += 1;
 			}

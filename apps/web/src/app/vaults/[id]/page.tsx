@@ -28,6 +28,7 @@ import {
 	Droplet,
 	ExternalLink,
 	MoreHorizontal,
+	Pencil,
 	RefreshCcw,
 	RefreshCw,
 	ShieldCheck,
@@ -45,6 +46,7 @@ import {
 } from "viem";
 import { baseSepolia } from "viem/chains";
 import { orpc } from "@/utils/orpc";
+import { EditAgentSheet } from "./edit-agent-sheet";
 import { LiveActivityCard } from "./live-activity-card";
 import { ManualCycleSheet } from "./manual-cycle-sheet";
 import { useVaultCycleFeed } from "./use-vault-cycle-feed";
@@ -123,6 +125,7 @@ export default function VaultDetailPage() {
 	const [isFunding, setIsFunding] = useState(false);
 	const [fundSheetOpen, setFundSheetOpen] = useState(false);
 	const [triggerSheetOpen, setTriggerSheetOpen] = useState(false);
+	const [editAgentSheetOpen, setEditAgentSheetOpen] = useState(false);
 
 	const primaryWallet = wallets[0] as PrivyWalletLike | undefined;
 
@@ -451,8 +454,17 @@ export default function VaultDetailPage() {
 										<DropdownMenuSeparator className="bg-[#2a2a2a]" />
 										<DropdownMenuItem
 											className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
+											onClick={() => {
+												setEditAgentSheetOpen(true);
+											}}
+										>
+											<Pencil className="mr-2 size-4 text-[#a38c85]" />
+											Edit agent
+										</DropdownMenuItem>
+										<DropdownMenuItem
+											className="font-manrope text-[#dbc1b9] hover:bg-[#2a2a2a]"
 											disabled={isWithdrawing || balances.isLoading}
-											onSelect={() => {
+											onClick={() => {
 												withdraw().catch(() => {
 													/* errors surfaced via toast */
 												});
@@ -599,6 +611,11 @@ export default function VaultDetailPage() {
 					</div>
 				</div>
 			</main>
+			<EditAgentSheet
+				onOpenChange={setEditAgentSheetOpen}
+				open={editAgentSheetOpen}
+				vaultId={vaultId}
+			/>
 		</VaultDetailProvider>
 	);
 }

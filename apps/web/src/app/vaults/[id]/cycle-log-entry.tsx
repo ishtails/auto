@@ -21,6 +21,30 @@ function OgDurableLogBlock({
 		""
 	);
 
+	let daTxLine: ReactNode = null;
+	if (og.daTxHash) {
+		if (txPrefix) {
+			daTxLine = (
+				<a
+					className="inline-flex items-center gap-1 text-[#c8d9f5] underline-offset-4 hover:underline"
+					href={`${txPrefix}/${og.daTxHash}`}
+					rel="noopener noreferrer"
+					target="_blank"
+					title="View DA blob submission transaction on the 0G network"
+				>
+					DA blob tx
+					<ExternalLink aria-hidden className="size-3 opacity-80" />
+				</a>
+			);
+		} else {
+			daTxLine = (
+				<span className="break-all font-mono text-[#a38c85]">
+					DA tx {og.daTxHash}
+				</span>
+			);
+		}
+	}
+
 	let txLine: ReactNode = null;
 	if (og.txHash) {
 		if (txPrefix) {
@@ -62,10 +86,20 @@ function OgDurableLogBlock({
 				{og.rootHash ? (
 					<p>
 						<span className="font-manrope text-[#6b5d58] text-[10px] uppercase tracking-wide">
-							Batch root
+							KV batch root
 						</span>
 						<span className="mt-0.5 block break-all font-mono text-[#a38c85]">
 							{og.rootHash}
+						</span>
+					</p>
+				) : null}
+				{og.daRootHash ? (
+					<p>
+						<span className="font-manrope text-[#6b5d58] text-[10px] uppercase tracking-wide">
+							DA trace root
+						</span>
+						<span className="mt-0.5 block break-all font-mono text-[#a38c85]">
+							{og.daRootHash}
 						</span>
 					</p>
 				) : null}
@@ -78,6 +112,7 @@ function OgDurableLogBlock({
 							Couldn’t finish audit write: {og.lastError}
 						</span>
 					) : null}
+					{daTxLine}
 					{txLine}
 					<a
 						className="inline-flex items-center gap-1 text-[#8cb4ff] underline-offset-4 hover:underline"
