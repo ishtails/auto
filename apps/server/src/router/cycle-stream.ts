@@ -47,6 +47,7 @@ export function registerCycleStreamRoutes(app: Hono) {
 
 		return streamSSE(c, async (stream) => {
 			const seen = new Set<string>();
+			const lastRecordSnapshot = new Map<string, string>();
 			let lastCursor: { occurredAt: Date; cycleId: string } | null = null;
 
 			const readRecentLogsFromDb = async (): Promise<CycleLogRecord[]> => {
@@ -103,6 +104,7 @@ export function registerCycleStreamRoutes(app: Hono) {
 				const ordered = [...recent].reverse();
 				for (const record of ordered) {
 					seen.add(record.cycleId);
+					lastRecordSnapshot.set(record.cycleId, JSON.stringify(record));
 				}
 
 				// Track last cursor for incremental polling.
@@ -120,6 +122,24 @@ export function registerCycleStreamRoutes(app: Hono) {
 				});
 			};
 
+			const emitUpdatedSnapshots = async () => {
+				const recent = await readRecentLogsFromDb();
+				for (const record of recent) {
+					if (!seen.has(record.cycleId)) {
+						continue;
+					}
+					const snap = JSON.stringify(record);
+					if (lastRecordSnapshot.get(record.cycleId) === snap) {
+						continue;
+					}
+					lastRecordSnapshot.set(record.cycleId, snap);
+					await stream.writeSSE({
+						event: "cycle",
+						data: JSON.stringify(record),
+					});
+				}
+			};
+
 			await sendHistory();
 
 			stream.onAbort(() => {
@@ -133,6 +153,7 @@ export function registerCycleStreamRoutes(app: Hono) {
 
 				for (const record of newRecords) {
 					seen.add(record.cycleId);
+					lastRecordSnapshot.set(record.cycleId, JSON.stringify(record));
 					lastCursor = {
 						occurredAt: new Date(record.timestamp),
 						cycleId: record.cycleId,
@@ -142,6 +163,8 @@ export function registerCycleStreamRoutes(app: Hono) {
 						data: JSON.stringify(record),
 					});
 				}
+
+				await emitUpdatedSnapshots();
 
 				await stream.writeSSE({ event: "ping", data: String(Date.now()) });
 			}
