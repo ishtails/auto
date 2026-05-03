@@ -1,6 +1,6 @@
 # Roadmap / Vision
 
-This is a minimal “what’s next” list, based on the current platform.
+This doc is for **longer-horizon ideas**. Active near-term tasks live in [`plan.md`](./plan.md) (architecture diagram, ENS integration, builder feedback drafts for 0G/ENS, demo video, README polish, deployment verification). **AXL is not on that path**—risk uses deterministic checks plus mock or optional wiring.
 
 ## The “Voice” (high impact)
 

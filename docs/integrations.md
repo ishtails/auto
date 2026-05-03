@@ -10,7 +10,7 @@ This project links user-owned vaults to an agent loop. Integrations are intentio
 ## LLM + Decisioning
 
 - **Gemini**: generates strict JSON (`action`, `amountInWei`, and human-readable `reasoning`).
-- **Risk**: deterministic gate + optional AXL risk agent (mockable).
+- **Risk**: deterministic gate + optional second opinion from the risk path (`MOCK_RISK_AGENT=true` skips remote calls for local demos).
 
 ## Storage + Streaming
 
@@ -33,88 +33,15 @@ This list is intentionally minimal; see `@auto/env` for the full set.
 - **Execution**: `KEEPERHUB_BASE_URL`, `KEEPERHUB_API_KEY`, `UNISWAP_ROUTER_ADDRESS`
 - **0G**: `OG_INDEXER_RPC`, `OG_KV_ENDPOINT`, `OG_RPC_URL`, `OG_PRIVATE_KEY`, `OG_FLOW_CONTRACT`
 - **Debug**: `DEBUG=true`
+- **Risk (local default)**: `MOCK_RISK_AGENT=true` avoids requiring separate risk infra.
 
-Trading Agent and Risk Agent must communicate over AXL (not in-process calls).
+---
 
-Minimal pattern:
+## Risk agent (no AXL required)
 
-1. Start node A (trading) and node B (risk) with persistent identities.
-2. Exchange public keys.
-3. Trading sends proposal JSON to Risk via `/send`.
-4. Risk receives via `/recv`, validates, replies via `/send`.
+The trade cycle combines **deterministic rails** with an optional **risk agent** decision path. For normal development and demos, set **`MOCK_RISK_AGENT=true`** so the server does not depend on extra P2P services.
 
-### Build and run
-
-From docs:
-
-```bash
-git clone https://github.com/gensyn-ai/axl.git
-cd axl
-go build -o node ./cmd/node/
-./node -config node-config.json
-```
-
-### Key generation
-
-Generate an ed25519 key (docs note macOS openssl caveat):
-
-```bash
-openssl genpkey -algorithm ed25519 -out private.pem
-```
-
-### Config essentials
-
-Minimal config (`node-config.json`):
-
-```json
-{
-  "PrivateKeyPath": "private.pem",
-  "Peers": []
-}
-```
-
-Key ports (defaults from config docs):
-
-- `api_port`: 9002 (HTTP interface)
-- `bridge_addr`: 127.0.0.1 (HTTP bind)
-- `tcp_port`: 7000 (internal gVisor TCP)
-- `max_message_size`: 16777216 (16 MB)
-
-### Enabling MCP / A2A services (optional)
-
-AXL can route “MCP messages” and “A2A messages”, but enabling them requires:
-
-- setting `router_addr` / `a2a_addr` in config, and
-- running the Python MCP router and A2A server processes.
-
-For MVP, **plain `/send` + `/recv`** is sufficient unless the hackathon specifically requires A2A.
-
-### Verify node is running
-
-From docs:
-
-```bash
-curl -s http://127.0.0.1:9002/topology
-```
-
-### Message sizing and timeouts
-
-From config docs:
-
-- default max message size: **16 MB**
-- read timeout: 60s
-- idle timeout: 300s
-
-Design your payloads to be small:
-
-- send only what Risk needs (params + small reasoning)
-- store big logs in 0G and send only pointers if needed
-
-### Security note
-
-Do not expose the AXL HTTP API (`bridge_addr`) beyond localhost unless you understand the implications:
-
-- anyone who can reach the API can send messages “as your node”.
+Optional **Gensyn AXL**-style transport still exists in the codebase for experiments (`apps/server/src/integrations/axl-transport.ts` and related env vars). It is **not** part of the documented product or deployment checklist—see [`plan.md`](./plan.md). Keep any cross-process payloads small; large artifacts belong in **0G** with pointers.
 
 ---
 
@@ -129,9 +56,10 @@ Chain nuance:
 
 - For L2 chain-specific resolution, you may need chain-aware coin types / resolver settings.
 
-MVP recommendation:
+Near-term direction:
 
-- Maintain a simple config mapping (expected ENS names) and resolve them at runtime for display.
+- Track concrete ENS UX in [`plan.md`](./plan.md) (display names vs raw hex).
+- Until wired through the UI, a simple config mapping + `viem` resolution at runtime is enough for experiments.
 - Cache resolution results in memory on the server or in the client query cache to avoid repeated RPC calls.
 
 ---
@@ -153,7 +81,9 @@ You will need some combination of:
 - `OG_KV_ENDPOINT` (if using `KvClient` directly)
 - `OG_KV_STREAM_ID` (KV stream to write pointers into)
 
-### Gensyn AXL
+### Optional (experimental AXL transport)
+
+Only relevant if you turn off `MOCK_RISK_AGENT` and point the server at running peers—not needed for the checklist in [`plan.md`](./plan.md).
 
 - `AXL_TRADING_API_URL` (e.g. `http://127.0.0.1:9002`)
 - `AXL_RISK_API_URL` (e.g. `http://127.0.0.1:9012`)
@@ -175,8 +105,8 @@ These are **implementation boundaries** to keep integrations clean and testable.
 - `apps/server/src/integrations/0g/*`
   - log writer (upload)
   - kv pointer writer (latest + index)
-- `apps/server/src/integrations/axl/*`
-  - send/recv wrappers + typed envelopes
+- `apps/server/src/integrations/axl-transport.ts` (optional / experimental)
+  - only when exercising non-mock risk routing
 - `apps/web/src/integrations/0g/*` OR `apps/web/src/app/api/*`
   - if browser bundling is painful, proxy reads through server routes
 - `apps/web/src/integrations/ens/*`
@@ -187,12 +117,12 @@ These are **implementation boundaries** to keep integrations clean and testable.
 ## Common gotchas checklist
 
 - **Secrets**:
-  - Never commit `**/.env`. Keep `**/.env.example` templates.
+  - Never commit `.env` files. Keep `.env.example` templates up to date.
   - Never expose `OG_PRIVATE_KEY` or KeeperHub keys to the web.
 - **0G in browser**:
   - avoid bundling the TS SDK in Next until you validate polyfills; proxy reads if needed.
-- **AXL message size**:
-  - keep messages small; store large logs in 0G; send pointers/ids over AXL.
+- **Risk / bridge payloads**:
+  - keep cross-process messages small; store large logs in 0G and pass pointers.
 - **KeeperHub swap support**:
   - Uniswap plugin docs cover LP positions, not swaps.
   - Use contract-call to SwapRouter for swaps.

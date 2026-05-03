@@ -1,5 +1,7 @@
 # Platform Overview
 
+For the **current execution checklist** (architecture diagram, ENS, demo video, deployment verification, etc.), see [`plan.md`](./plan.md).
+
 ## What it is
 
 An on-chain vault + agent loop:

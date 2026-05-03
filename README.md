@@ -1,83 +1,88 @@
 # auto
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Hono, ORPC, and more.
+On-chain vaults with a **server-side trade cycle** (LLM proposal, risk checks, optional execution via KeeperHub and Uniswap) and a **Next.js** web app (Privy, live activity via SSE). The repo was bootstrapped with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack) and uses Hono, oRPC, and Turborepo.
 
-## Features
+## Documentation
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Hono** - Lightweight, performant server framework
-- **oRPC** - End-to-end type-safe APIs with OpenAPI integration
-- **Bun** - Runtime environment
-- **Biome** - Linting and formatting
-- **Turborepo** - Optimized monorepo build system
+- [`docs/overview.md`](./docs/overview.md) — what the platform does today
+- [`docs/plan.md`](./docs/plan.md) — near-term checklist (architecture diagram, ENS, 0G/ENS builder feedback, demo video, README, deployment verification; **AXL is not on this plan**)
+- [`docs/integrations.md`](./docs/integrations.md) — integrations and env vars
+- [`docs/roadmap.md`](./docs/roadmap.md) — longer-horizon ideas
+- [`docs/builder-feedback.md`](./docs/builder-feedback.md) — draft sponsor notes for 0G and ENS
 
-## Getting Started
+Partner-facing integration notes also live in [`FEEDBACK.md`](./FEEDBACK.md) at the repo root.
 
-First, install the dependencies:
+## Stack
+
+- **TypeScript** — types across apps and packages
+- **Next.js** — web app (`apps/web`, default dev port **3001**)
+- **Hono + oRPC** — API (`apps/server`)
+- **Tailwind + shadcn** — shared UI in `packages/ui`
+- **Bun** — runtime and package manager
+- **Biome (Ultracite)** — lint and format
+- **Turborepo** — monorepo tasks
+
+## Getting started
+
+Install dependencies:
 
 ```bash
 bun install
 ```
 
-Then, run the development server:
+Configure the server from `apps/server/.env.example` → `.env.staging` or `.env.local` (see [`docs/integrations.md`](./docs/integrations.md)).
+
+Run **web + API** together:
 
 ```bash
-bun run dev
+bun run web:dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3001](http://localhost:3001). Point `NEXT_PUBLIC_SERVER_URL` at your API (often `http://localhost:3000` in dev).
 
-## UI Customization
+## UI customization
 
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+React apps share shadcn/ui primitives through `packages/ui`.
 
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
+- Design tokens: `packages/ui/src/styles/globals.css`
+- Primitives: `packages/ui/src/components/*`
+- Config: `packages/ui/components.json` and `apps/web/components.json`
 
-### Add more shared components
-
-Run this from the project root to add more primitives to the shared UI package:
+### Add shared components
 
 ```bash
 npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
 ```
 
-Import shared components like this:
-
 ```tsx
 import { Button } from "@auto/ui/components/button";
 ```
 
-### Add app-specific blocks
+App-specific blocks: run the shadcn CLI from `apps/web`.
 
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
+## Formatting
 
-## Git Hooks and Formatting
+- `bun run check` — Ultracite / Biome fix
 
-- Format and lint fix: `bun run check`
-
-## Project Structure
+## Project structure
 
 ```
 auto/
 ├── apps/
-│   ├── web/         # Frontend application (Next.js)
-│   └── server/      # Backend API (Hono, ORPC)
+│   ├── web/         # Next.js frontend
+│   └── server/      # Hono + oRPC API
 ├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
+│   ├── ui/          # Shared shadcn/ui
+│   ├── api/         # Shared API / router types
+│   └── ...
+├── docs/            # Platform docs + execution checklist
 ```
 
-## Available Scripts
+## Scripts
 
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run dev:server`: Start only the server
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run check`: Run Biome formatting and linting
+- `bun run web:dev` — server (`dev:staging`) + web dev
+- `bun run dev:web` — web only
+- `bun run dev:server` — server only (`dev` filter)
+- `bun run build` — build all
+- `bun run check-types` — TypeScript across packages
+- `bun run check` — lint and format
