@@ -32,7 +32,7 @@ export const prepareVaultDeploymentOutputSchema = z.object({
 export const createVaultDeploymentSchema = z.object({
 	name: z.string().min(1).max(100),
 	geminiSystemPrompt: z.string().min(1),
-	autopilot: z.boolean().optional(),
+	executorEnabled: z.boolean().optional(),
 	maxTradeBps: z.number().int().min(1).max(10_000),
 	maxSlippageBps: z.number().int().min(1).max(10_000),
 	tokenIn: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
@@ -96,15 +96,37 @@ export const vaultSchema = z.object({
 	riskScore: z.number(),
 	/** Agent profile max slippage in basis points (1 bps = 0.01%). */
 	maxSlippageBps: z.number().int(),
-	autopilot: z.boolean(),
+	/** Live execution: cycles may swap on-chain when risk approves. */
+	executorEnabled: z.boolean(),
 	vaultAddress: z.string().nullable(),
 	tokenIn: z.string().nullable(),
 	tokenOut: z.string().nullable(),
+	/** 0 = schedule off. Otherwise seconds between automated cycles. */
+	scheduleCadenceSeconds: z.number().int(),
+	/** ISO 8601 UTC when the next scheduled cycle runs, or null if off. */
+	scheduleNextRunAt: z.string().nullable(),
 });
 
 export const listVaultsOutputSchema = z.array(vaultSchema);
 
-export const setVaultAutopilotSchema = z.object({
+export const setVaultExecutorEnabledSchema = z.object({
 	vaultId: z.string().uuid(),
-	autopilot: z.boolean(),
+	executorEnabled: z.boolean(),
+});
+
+export const setVaultScheduleSchema = z.object({
+	vaultId: z.string().uuid(),
+	/** 0 turns schedule off. Otherwise must be a preset from `SCHEDULE_CADENCE_SECONDS`. */
+	scheduleCadenceSeconds: z.number().int().min(0),
+	/**
+	 * Optional first run instant in UTC (ISO 8601). Client should send
+	 * `new Date(localPick).toISOString()` so wall-clock is normalized to UTC.
+	 * Ignored when `scheduleCadenceSeconds` is 0.
+	 */
+	firstRunAtUtc: z.string().min(1).optional(),
+});
+
+export const setVaultScheduleOutputSchema = z.object({
+	ok: z.literal(true),
+	scheduleNextRunAt: z.string().nullable(),
 });
