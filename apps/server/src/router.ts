@@ -14,6 +14,8 @@ import {
 	getVaultDeploymentSchema,
 	listVaultsOutputSchema,
 	prepareVaultDeploymentSchema,
+	setVaultAgentBasenameOutputSchema,
+	setVaultAgentBasenameSchema,
 	setVaultExecutorEnabledSchema,
 	setVaultScheduleOutputSchema,
 	setVaultScheduleSchema,
@@ -29,6 +31,7 @@ import { env } from "@auto/env/server";
 import { ORPCError } from "@orpc/server";
 import { and, desc, eq, lt, or } from "drizzle-orm";
 import { createPublicClient, hashTypedData, http, isAddress } from "viem";
+import { normalize } from "viem/ens";
 import { getUserWalletAddress } from "./auth/middleware";
 import { db } from "./db";
 import {
@@ -38,9 +41,38 @@ import {
 	vaultDeployments,
 	vaults,
 } from "./db/schema";
+import {
+	addressesEqual,
+	getBasenamesRegistryAddress,
+	resolveBasenameForwardAddress,
+} from "./integrations/basenames-resolve";
+import { ChainStateClient } from "./integrations/chain-state";
 import { debugLog } from "./router/debug";
-
 import { runTradeCycleInternal } from "./router/run-trade-cycle";
+
+/** `UserVault.maxTradeSizeBps` when deployed+active; else DB profile (e.g. pre-deploy). */
+async function resolveVaultMaxTradeBpsFromChainFirst(vault: {
+	agentProfile: { maxTradeBps: number } | null;
+	status: string;
+	vaultAddress: string | null;
+}): Promise<number> {
+	if (
+		vault.status === "active" &&
+		vault.vaultAddress &&
+		isAddress(vault.vaultAddress)
+	) {
+		try {
+			const chainState = new ChainStateClient(
+				env.CHAIN_RPC_URL,
+				vault.vaultAddress
+			);
+			return await chainState.getMaxTradeSizeBps();
+		} catch {
+			// RPC or contract read failure — fall back below
+		}
+	}
+	return vault.agentProfile?.maxTradeBps ?? 50;
+}
 
 // Server-side router implementation with full DB access
 export const appRouter = {
@@ -295,20 +327,24 @@ export const appRouter = {
 				return [];
 			}
 
-			return user.vaults.map((vault) => ({
-				id: vault.id,
-				name: vault.agentProfile?.name ?? "Unnamed Vault",
-				status: vault.status,
-				riskScore: vault.agentProfile?.maxTradeBps ?? 50,
-				maxSlippageBps: vault.agentProfile?.maxSlippageBps ?? 100,
-				executorEnabled: vault.agentProfile?.executorEnabled ?? false,
-				vaultAddress: vault.vaultAddress ?? null,
-				tokenIn: vault.agentProfile?.tokenIn ?? null,
-				tokenOut: vault.agentProfile?.tokenOut ?? null,
-				scheduleCadenceSeconds: vault.agentProfile?.scheduleCadenceSeconds ?? 0,
-				scheduleNextRunAt:
-					vault.agentProfile?.scheduleNextRunAt?.toISOString() ?? null,
-			}));
+			return Promise.all(
+				user.vaults.map(async (vault) => ({
+					id: vault.id,
+					name: vault.agentProfile?.name ?? "Unnamed Vault",
+					status: vault.status,
+					riskScore: await resolveVaultMaxTradeBpsFromChainFirst(vault),
+					maxSlippageBps: vault.agentProfile?.maxSlippageBps ?? 100,
+					executorEnabled: vault.agentProfile?.executorEnabled ?? false,
+					vaultAddress: vault.vaultAddress ?? null,
+					tokenIn: vault.agentProfile?.tokenIn ?? null,
+					tokenOut: vault.agentProfile?.tokenOut ?? null,
+					scheduleCadenceSeconds:
+						vault.agentProfile?.scheduleCadenceSeconds ?? 0,
+					scheduleNextRunAt:
+						vault.agentProfile?.scheduleNextRunAt?.toISOString() ?? null,
+					agentBasename: vault.agentProfile?.agentBasename ?? null,
+				}))
+			);
 		}),
 
 	createVaultDeployment: authedProcedure
@@ -589,13 +625,15 @@ export const appRouter = {
 			}
 
 			const p = vault.agentProfile;
+			const maxTradeBps = await resolveVaultMaxTradeBpsFromChainFirst(vault);
 			return {
 				geminiSystemPrompt: p.geminiSystemPrompt,
 				maxSlippageBps: p.maxSlippageBps,
-				maxTradeBps: p.maxTradeBps,
+				maxTradeBps,
 				name: p.name,
 				tokenIn: p.tokenIn,
 				tokenOut: p.tokenOut,
+				agentBasename: p.agentBasename ?? null,
 			};
 		}),
 
@@ -640,12 +678,108 @@ export const appRouter = {
 				.set({
 					geminiSystemPrompt: input.geminiSystemPrompt,
 					maxSlippageBps: input.maxSlippageBps,
-					maxTradeBps: input.maxTradeBps,
 					name: input.name,
 					tokenIn,
 					tokenOut,
 					updatedAt: new Date(),
 				})
+				.where(eq(agentProfiles.vaultId, vault.id));
+
+			return { ok: true as const };
+		}),
+
+	setVaultAgentBasename: authedProcedure
+		.input(setVaultAgentBasenameSchema)
+		.output(setVaultAgentBasenameOutputSchema)
+		.handler(async ({ context, input }) => {
+			if (context.auth?.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Requires user context",
+				});
+			}
+
+			const user = await db.query.users.findFirst({
+				where: eq(users.privyUserId, context.auth.privyUserId),
+			});
+
+			if (!user) {
+				throw new ORPCError("NOT_FOUND", { message: "User not found" });
+			}
+
+			const vault = await db.query.vaults.findFirst({
+				where: and(eq(vaults.id, input.vaultId), eq(vaults.userId, user.id)),
+			});
+
+			if (!vault) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Not authorized to update this vault",
+				});
+			}
+
+			const raw = input.agentBasename?.trim() ?? "";
+			if (raw === "") {
+				await db
+					.update(agentProfiles)
+					.set({ agentBasename: null, updatedAt: new Date() })
+					.where(eq(agentProfiles.vaultId, vault.id));
+				return { ok: true as const };
+			}
+
+			if (vault.chainId !== env.CHAIN_ID) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Vault chain does not match server configuration",
+				});
+			}
+
+			if (!getBasenamesRegistryAddress(vault.chainId)) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Basenames are only supported on Base or Base Sepolia",
+				});
+			}
+
+			if (!vault.vaultAddress) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Deploy the vault before linking a Basename",
+				});
+			}
+
+			let normalized: string;
+			try {
+				normalized = normalize(raw);
+			} catch {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Invalid Basename (normalization failed)",
+				});
+			}
+
+			if (!normalized.endsWith(".base.eth")) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Basename must end with .base.eth",
+				});
+			}
+
+			const resolved = await resolveBasenameForwardAddress({
+				rpcUrl: env.CHAIN_RPC_URL,
+				chainId: vault.chainId,
+				basename: normalized,
+			});
+
+			if (!resolved) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Could not resolve this name on-chain (no resolver or address record)",
+				});
+			}
+
+			if (!addressesEqual(resolved, vault.vaultAddress)) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Basename does not resolve to this vault's address",
+				});
+			}
+
+			await db
+				.update(agentProfiles)
+				.set({ agentBasename: normalized, updatedAt: new Date() })
 				.where(eq(agentProfiles.vaultId, vault.id));
 
 			return { ok: true as const };
