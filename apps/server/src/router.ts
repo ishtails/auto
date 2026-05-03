@@ -9,6 +9,7 @@ import {
 } from "@auto/api/trade-types";
 import {
 	createVaultDeploymentSchema,
+	getVaultAgentProfileInputSchema,
 	getVaultBalancesSchema,
 	getVaultDeploymentSchema,
 	listVaultsOutputSchema,
@@ -16,6 +17,9 @@ import {
 	setVaultExecutorEnabledSchema,
 	setVaultScheduleOutputSchema,
 	setVaultScheduleSchema,
+	updateVaultAgentSettingsOutputSchema,
+	updateVaultAgentSettingsSchema,
+	vaultAgentProfileOutputSchema,
 } from "@auto/api/vault-types";
 import {
 	VAULT_FACTORY_ABI,
@@ -553,6 +557,98 @@ export const appRouter = {
 				ok: true as const,
 				scheduleNextRunAt: scheduleNextRunAt?.toISOString() ?? null,
 			};
+		}),
+
+	getVaultAgentProfile: authedProcedure
+		.input(getVaultAgentProfileInputSchema)
+		.output(vaultAgentProfileOutputSchema)
+		.handler(async ({ context, input }) => {
+			if (context.auth?.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Requires user context",
+				});
+			}
+
+			const user = await db.query.users.findFirst({
+				where: eq(users.privyUserId, context.auth.privyUserId),
+			});
+
+			if (!user) {
+				throw new ORPCError("NOT_FOUND", { message: "User not found" });
+			}
+
+			const vault = await db.query.vaults.findFirst({
+				where: and(eq(vaults.id, input.vaultId), eq(vaults.userId, user.id)),
+				with: { agentProfile: true },
+			});
+
+			if (!vault?.agentProfile) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Vault or agent profile not found",
+				});
+			}
+
+			const p = vault.agentProfile;
+			return {
+				geminiSystemPrompt: p.geminiSystemPrompt,
+				maxSlippageBps: p.maxSlippageBps,
+				maxTradeBps: p.maxTradeBps,
+				name: p.name,
+				tokenIn: p.tokenIn,
+				tokenOut: p.tokenOut,
+			};
+		}),
+
+	updateVaultAgentSettings: authedProcedure
+		.input(updateVaultAgentSettingsSchema)
+		.output(updateVaultAgentSettingsOutputSchema)
+		.handler(async ({ context, input }) => {
+			if (context.auth?.type !== "user") {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Requires user context",
+				});
+			}
+
+			const user = await db.query.users.findFirst({
+				where: eq(users.privyUserId, context.auth.privyUserId),
+			});
+
+			if (!user) {
+				throw new ORPCError("NOT_FOUND", { message: "User not found" });
+			}
+
+			const vault = await db.query.vaults.findFirst({
+				where: and(eq(vaults.id, input.vaultId), eq(vaults.userId, user.id)),
+			});
+
+			if (!vault) {
+				throw new ORPCError("UNAUTHORIZED", {
+					message: "Not authorized to update this vault",
+				});
+			}
+
+			const tokenIn = input.tokenIn.toLowerCase();
+			const tokenOut = input.tokenOut.toLowerCase();
+			if (!(isAddress(tokenIn) && isAddress(tokenOut))) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "tokenIn and tokenOut must be valid addresses",
+				});
+			}
+
+			await db
+				.update(agentProfiles)
+				.set({
+					geminiSystemPrompt: input.geminiSystemPrompt,
+					maxSlippageBps: input.maxSlippageBps,
+					maxTradeBps: input.maxTradeBps,
+					name: input.name,
+					tokenIn,
+					tokenOut,
+					updatedAt: new Date(),
+				})
+				.where(eq(agentProfiles.vaultId, vault.id));
+
+			return { ok: true as const };
 		}),
 
 	getVaultDeployment: authedProcedure
