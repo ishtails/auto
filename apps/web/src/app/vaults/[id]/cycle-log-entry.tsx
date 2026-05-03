@@ -2,6 +2,7 @@
 
 import type { CycleLogRecord } from "@auto/api/trade-types";
 import { ExternalLink } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { formatEther } from "viem";
@@ -61,7 +62,7 @@ function runPillForMode(mode: CycleLogRecord["mode"] | undefined): {
 	if (mode === "suggest") {
 		return {
 			runPill: "Suggestion",
-			runPillHint: "Autopilot off — advice only, no auto trade.",
+			runPillHint: "Executor off — advice only; no on-chain execution.",
 		};
 	}
 	if (mode === "dryRun") {
@@ -72,7 +73,7 @@ function runPillForMode(mode: CycleLogRecord["mode"] | undefined): {
 	}
 	return {
 		runPill: "Live run",
-		runPillHint: "Autopilot can execute on-chain when enabled.",
+		runPillHint: "Executor on — may execute on-chain when risk approves.",
 	};
 }
 
@@ -126,7 +127,7 @@ function outcomeBlock(entry: CycleLogRecord): {
 		return {
 			accentClass: "border-l-4 border-l-[#4a90d9]",
 			headline,
-			subline: "Not executed — autopilot was off.",
+			subline: "Not executed — executor (live) mode was off.",
 		};
 	}
 	return {
@@ -200,10 +201,14 @@ function getCyclePresentation(entry: CycleLogRecord): {
 export function CycleLogEntry({
 	entry,
 	baseScanTxUrl,
+	emphasizeEnter = false,
 }: {
 	entry: CycleLogRecord;
 	baseScanTxUrl: (txHash: string) => string;
+	/** When true, play a short entrance motion (new live / paginated row). */
+	emphasizeEnter?: boolean;
 }) {
+	const reduceMotion = useReducedMotion();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const reasoning = entry.proposal.reasoning;
 
@@ -222,14 +227,25 @@ export function CycleLogEntry({
 	const shouldShowToggle =
 		Boolean(reasoning) && reasoning.length > TRUNCATE_REASONING_AT;
 
+	const playEnter = Boolean(emphasizeEnter && !reduceMotion);
+
 	return (
-		<li
+		<motion.li
+			animate={{ opacity: 1, scale: 1, y: 0 }}
 			className={`rounded-lg border border-[#2a2a2a] bg-[#131313] py-4 pr-4 pl-5 text-left ${presentation.accentClass}`}
+			initial={playEnter ? { opacity: 0, scale: 0.985, y: -14 } : false}
+			layout
+			transition={{
+				type: "spring",
+				stiffness: 420,
+				damping: 32,
+				layout: { duration: 0.22 },
+			}}
 		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<p
-						className="mt-0.5 select-all break-all font-mono text-[#ffb59e] text-xs leading-snug"
+						className="mt-0.5 select-all break-all font-mono text-[#ffb59e] text-sm leading-snug"
 						title={entry.cycleId}
 					>
 						ID: {entry.cycleId}
@@ -242,14 +258,14 @@ export function CycleLogEntry({
 					</p>
 				</div>
 				<div className="flex shrink-0 flex-col items-end gap-1">
-					<span className="rounded-md border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1 font-manrope text-[#dbc1b9] text-xs">
+					<span className="rounded-md border border-[#55433d] bg-[#1b1b1b] px-2.5 py-1 font-manrope text-[#dbc1b9] text-sm">
 						{presentation.runPill}
 					</span>
 				</div>
 			</div>
 
 			{presentation.runPillHint ? (
-				<p className="mt-3 font-manrope text-[#6b5d58] text-xs leading-relaxed">
+				<p className="mt-3 font-manrope text-[#6b5d58] text-sm leading-relaxed">
 					{presentation.runPillHint}
 				</p>
 			) : null}
@@ -322,7 +338,7 @@ export function CycleLogEntry({
 					</p>
 					{shouldShowToggle ? (
 						<button
-							className="mt-2 font-manrope text-[#ffb59e] text-xs underline-offset-4 hover:underline"
+							className="mt-2 font-manrope text-[#ffb59e] text-sm underline-offset-4 hover:underline"
 							onClick={() => setIsExpanded((prev) => !prev)}
 							type="button"
 						>
@@ -344,21 +360,21 @@ export function CycleLogEntry({
 						<ExternalLink aria-hidden className="size-3.5 opacity-80" />
 					</a>
 
-					<p className="mt-4 text-right font-manrope text-[#6b5d58] text-xs">
+					<p className="mt-4 text-right font-manrope text-[#6b5d58] text-sm">
 						{new Date(entry.timestamp).toLocaleString(undefined, {
 							dateStyle: "medium",
-							timeStyle: "short",
+							timeStyle: "long",
 						})}
 					</p>
 				</div>
 			) : (
-				<p className="mt-4 text-right font-manrope text-[#6b5d58] text-xs">
+				<p className="mt-4 text-right font-manrope text-[#6b5d58] text-sm">
 					{new Date(entry.timestamp).toLocaleString(undefined, {
 						dateStyle: "medium",
-						timeStyle: "short",
+						timeStyle: "long",
 					})}
 				</p>
 			)}
-		</li>
+		</motion.li>
 	);
 }

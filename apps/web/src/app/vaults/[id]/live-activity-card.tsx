@@ -7,7 +7,7 @@ import {
 	CardTitle,
 } from "@auto/ui/components/card";
 import { Activity } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { CycleLogEntry } from "./cycle-log-entry";
 import { useVaultDetailContext } from "./vault-detail-context";
 
@@ -21,6 +21,30 @@ export function LiveActivityCard() {
 	} = useVaultDetailContext();
 
 	const sentinelRef = useRef<HTMLDivElement | null>(null);
+	const hasSeededCycleIdsRef = useRef(false);
+	const prevCycleIdsRef = useRef<Set<string>>(new Set());
+
+	const emphasizeEnterIds = useMemo(() => {
+		const current = new Set(cycles.map((c) => c.cycleId));
+
+		if (!hasSeededCycleIdsRef.current) {
+			if (cycles.length === 0) {
+				return new Set<string>();
+			}
+			hasSeededCycleIdsRef.current = true;
+			prevCycleIdsRef.current = current;
+			return new Set<string>();
+		}
+
+		const arrived = new Set<string>();
+		for (const id of current) {
+			if (!prevCycleIdsRef.current.has(id)) {
+				arrived.add(id);
+			}
+		}
+		prevCycleIdsRef.current = current;
+		return arrived;
+	}, [cycles]);
 
 	useEffect(() => {
 		const node = sentinelRef.current;
@@ -64,7 +88,7 @@ export function LiveActivityCard() {
 							Nothing here yet.
 						</p>
 						<p className="mx-auto mt-2 max-w-sm font-manrope text-[#a38c85] text-sm leading-relaxed">
-							Run trade cycle or enable autopilot — activity will show up here.
+							Run trade cycle or turn executor on — activity will show up here.
 						</p>
 					</div>
 				) : (
@@ -72,6 +96,7 @@ export function LiveActivityCard() {
 						{cycles.map((entry) => (
 							<CycleLogEntry
 								baseScanTxUrl={baseScanTxUrl}
+								emphasizeEnter={emphasizeEnterIds.has(entry.cycleId)}
 								entry={entry}
 								key={entry.cycleId}
 							/>
@@ -79,7 +104,7 @@ export function LiveActivityCard() {
 						{hasMoreCycles ? (
 							<li className="pt-2">
 								<div
-									className="text-center font-manrope text-[#a38c85] text-xs"
+									className="text-center font-manrope text-[#a38c85] text-sm"
 									ref={sentinelRef}
 								>
 									{isFetchingMoreCycles
