@@ -34,7 +34,7 @@ Auto is a production-shaped monorepo: operators authenticate, configure vaults, 
 
 ## Why this architecture
 
-- **Verifiability over vibes.** KV + DA patterns and a Router-mediated inference step on **0G Compute** make the story linear and inspectable: *propose → gate → verify → execute → anchor on 0G*.
+- **Verifiability.** KV + DA patterns and a Router-mediated inference step on **0G Compute** make the story linear and inspectable: *propose → gate → verify → execute → anchor on 0G*.
 - **Latency where users touch the product; durability where capital and reputation matter.** Chains and decentralized storage are not synchronous with a click. Postgres + SSE keep the UI honest; workers finish KV/DA writes and reconcile rows when proofs land so activity cards update without blocking HTTP.
 - **One surface for reviewers.** Next.js + Hono in a single Turborepo so a line in the integration table maps straight to the implementation.
 
@@ -49,7 +49,6 @@ Auto is a production-shaped monorepo: operators authenticate, configure vaults, 
 5. **Record** — The cycle persists for the UI; **KV** and (by default) a **DA** trace upload run in the background; the UI surfaces pointers, batch roots, and transaction links as they confirm.
 
 Skimming for integrations? The next section maps each step to docs, code, and environment.
-
 ---
 
 ## Integration map
@@ -144,6 +143,10 @@ flowchart LR
 
 
 Postgres and SSE optimize for responsiveness; **0G Storage** uses **KV** for stream-shaped audit keys and **DA** for a full JSON envelope per cycle. With both paths enabled, expect two storage-related transactions (KV batch + DA upload).
+
+<br/>
+<img width="1800" height="1031" alt="image" src="https://github.com/user-attachments/assets/85eabb6f-1ab3-493c-a604-5fd5cfeed700" />
+<br/>
 
 ---
 
