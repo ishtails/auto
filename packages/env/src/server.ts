@@ -2,11 +2,87 @@ import "dotenv/config";
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
+function validateGoogleGenAiEnv(e: {
+	GOOGLE_GENAI_USE_VERTEXAI: boolean;
+	GEMINI_API_KEY?: string | undefined;
+	GCP_SERVICE_ACCOUNT_JSON?: string | undefined;
+	GOOGLE_CLOUD_PROJECT?: string | undefined;
+	GOOGLE_CLOUD_LOCATION?: string | undefined;
+	GOOGLE_VERTEX_BASE_URL?: string | undefined;
+}): void {
+	if (e.GOOGLE_GENAI_USE_VERTEXAI) {
+		if (!e.GOOGLE_CLOUD_PROJECT?.trim()) {
+			throw new Error(
+				"Invalid environment variables: GOOGLE_CLOUD_PROJECT is required when GOOGLE_GENAI_USE_VERTEXAI=true"
+			);
+		}
+		if (!e.GOOGLE_CLOUD_LOCATION?.trim()) {
+			throw new Error(
+				"Invalid environment variables: GOOGLE_CLOUD_LOCATION is required when GOOGLE_GENAI_USE_VERTEXAI=true"
+			);
+		}
+		if (e.GEMINI_API_KEY?.trim()) {
+			throw new Error(
+				"Invalid environment variables: GEMINI_API_KEY cannot be set together with GOOGLE_CLOUD_PROJECT/GOOGLE_CLOUD_LOCATION (Vertex AI mode)"
+			);
+		}
+		if (!e.GCP_SERVICE_ACCOUNT_JSON?.trim()) {
+			throw new Error(
+				"Invalid environment variables: GCP_SERVICE_ACCOUNT_JSON is required when GOOGLE_GENAI_USE_VERTEXAI=true"
+			);
+		}
+		const vertexBaseUrl = e.GOOGLE_VERTEX_BASE_URL?.trim();
+		if (vertexBaseUrl) {
+			const normalized = vertexBaseUrl.endsWith("/")
+				? vertexBaseUrl
+				: `${vertexBaseUrl}/`;
+			const isAllowedHost =
+				normalized === "https://aiplatform.googleapis.com/" ||
+				normalized.endsWith("-aiplatform.googleapis.com/");
+			if (!isAllowedHost) {
+				throw new Error(
+					"Invalid environment variables: GOOGLE_VERTEX_BASE_URL must be https://aiplatform.googleapis.com/ or https://{region}-aiplatform.googleapis.com/"
+				);
+			}
+		}
+	} else if (!e.GEMINI_API_KEY?.trim()) {
+		throw new Error(
+			"Invalid environment variables: GEMINI_API_KEY is required when GOOGLE_GENAI_USE_VERTEXAI is false"
+		);
+	}
+}
+
 export const env = createEnv({
 	server: {
 		CORS_ORIGIN: z.url(),
-		GEMINI_API_KEY: z.string().min(1),
+		/**
+		 * Gemini Developer API key. Required when GOOGLE_GENAI_USE_VERTEXAI is false.
+		 * Must be unset when GOOGLE_GENAI_USE_VERTEXAI is true (Vertex client uses project/location + ADC).
+		 */
+		GEMINI_API_KEY: z.string().min(1).optional(),
 		GEMINI_MODEL: z.string().min(1),
+		/**
+		 * When true, use Vertex AI (GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION, and typically GCP ADC).
+		 * When false, use the Gemini API with GEMINI_API_KEY.
+		 */
+		GOOGLE_GENAI_USE_VERTEXAI: z
+			.enum(["true", "false"])
+			.default("false")
+			.transform((val) => val === "true"),
+		/**
+		 * Raw Service Account JSON (single-line). Used to authenticate Vertex AI via ADC.
+		 * Required when GOOGLE_GENAI_USE_VERTEXAI is true.
+		 */
+		GCP_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
+		/**
+		 * Optional override for the Vertex REST base URL used by `@google/genai`.
+		 * If set, must be `https://aiplatform.googleapis.com/` or `https://{region}-aiplatform.googleapis.com/`.
+		 */
+		GOOGLE_VERTEX_BASE_URL: z.string().min(1).optional(),
+		/** Google Cloud project ID (string), required when GOOGLE_GENAI_USE_VERTEXAI=true. */
+		GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
+		/** Vertex region (e.g. us-central1), required when GOOGLE_GENAI_USE_VERTEXAI=true. */
+		GOOGLE_CLOUD_LOCATION: z.string().min(1).optional(),
 		MOCK_LLM: z
 			.enum(["true", "false"])
 			.default("false")
@@ -124,3 +200,5 @@ export const env = createEnv({
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
 });
+
+validateGoogleGenAiEnv(env);

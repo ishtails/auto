@@ -1,5 +1,6 @@
 import type { IntegrationServices } from "@auto/api/context";
 import { env } from "@auto/env/server";
+import type { GoogleGenAIOptions } from "@google/genai";
 import { base, baseSepolia } from "viem/chains";
 import {
 	BASE_MAINNET_CHAIN_ID,
@@ -106,7 +107,57 @@ const resolveUniswapTradeApiConfig = (
 };
 
 export const createIntegrationServices = (): IntegrationServices => {
-	const llm = new LlmAgent(env.GEMINI_MODEL, env.GEMINI_API_KEY, env.MOCK_LLM);
+	let googleGenAi: GoogleGenAIOptions;
+	if (env.GOOGLE_GENAI_USE_VERTEXAI) {
+		const project = env.GOOGLE_CLOUD_PROJECT;
+		const location = env.GOOGLE_CLOUD_LOCATION;
+		const serviceAccountJsonRaw = env.GCP_SERVICE_ACCOUNT_JSON;
+		if (!(project && location)) {
+			throw new Error(
+				"Invariant: Vertex AI env vars missing after @auto/env/server validation"
+			);
+		}
+		if (!serviceAccountJsonRaw) {
+			throw new Error(
+				"Invariant: GCP_SERVICE_ACCOUNT_JSON missing after @auto/env/server validation"
+			);
+		}
+		let serviceAccountCredentials: unknown;
+		try {
+			serviceAccountCredentials = JSON.parse(serviceAccountJsonRaw);
+		} catch (error) {
+			throw new Error(
+				`Invalid GCP_SERVICE_ACCOUNT_JSON: ${(error as Error).message}`
+			);
+		}
+		googleGenAi = {
+			vertexai: true,
+			// Vertex GenAI REST uses `v1` (not v1beta1); using v1beta1 can yield 404s.
+			apiVersion: "v1",
+			project,
+			location,
+			googleAuthOptions: {
+				credentials: serviceAccountCredentials as Record<string, unknown>,
+			},
+		};
+	} else {
+		const apiKey = env.GEMINI_API_KEY;
+		if (!apiKey) {
+			throw new Error(
+				"Invariant: GEMINI_API_KEY missing after @auto/env/server validation"
+			);
+		}
+		googleGenAi = {
+			vertexai: false,
+			apiKey,
+		};
+	}
+
+	const llm = new LlmAgent({
+		googleGenAi,
+		mockMode: env.MOCK_LLM,
+		model: env.GEMINI_MODEL,
+	});
 	const keeperhub = new KeeperHubClient(
 		env.KEEPERHUB_BASE_URL,
 		env.KEEPERHUB_API_KEY

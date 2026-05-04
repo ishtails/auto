@@ -3,12 +3,17 @@ import type {
 	TradeProposal,
 } from "@auto/api/trade-types";
 import { tradeProposalSchema } from "@auto/api/trade-types";
-import type { Schema } from "@google/genai";
+import type { GoogleGenAIOptions, Schema } from "@google/genai";
 import { GoogleGenAI, Type } from "@google/genai";
+
+export interface LlmAgentConfig {
+	googleGenAi: GoogleGenAIOptions;
+	mockMode?: boolean;
+	model: string;
+}
 
 export interface LlmStateInput {
 	allowlistLines: string[];
-	/** Max spend from WETH hub slice (wei) for trades that spend WETH. */
 	amountInWei: bigint;
 	hubTokenAddress: string;
 	mockTokenOut: string;
@@ -32,10 +37,10 @@ export class LlmAgent {
 		required: ["action", "tokenIn", "tokenOut", "amountInWei", "reasoning"],
 	};
 
-	constructor(model: string, apiKey: string, mockMode = false) {
-		this.model = model;
-		this.mockMode = mockMode;
-		this.ai = new GoogleGenAI({ apiKey });
+	constructor(config: LlmAgentConfig) {
+		this.model = config.model;
+		this.mockMode = config.mockMode ?? false;
+		this.ai = new GoogleGenAI(config.googleGenAi);
 	}
 
 	private normalizeAndValidateProposal(

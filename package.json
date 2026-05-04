@@ -46,15 +46,15 @@
   },
   "dependencies": {
     "@auto/env": "workspace:*",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@auto/config": "workspace:*",
     "@biomejs/biome": "2.4.12",
-    "@types/bun": "catalog:",
-    "turbo": "^2.8.12",
-    "typescript": "catalog:",
+    "@types/bun": "^1.3.13",
+    "turbo": "^2.9.8",
+    "typescript": "^6.0.3",
     "ultracite": "7.6.2"
   },
   "packageManager": "bun@1.3.12"
