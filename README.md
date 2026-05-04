@@ -26,9 +26,9 @@ That combination—**intent → policy → verified judgment → execution → p
 
 ---
 
-## What Auto is
+## What is Auto
 
-Auto is a production-shaped monorepo: operators authenticate, configure vaults, and run trade cycles on demand or on a schedule. Each cycle emits a structured artifact (proposal, risk outcome, optional swap execution). The interface stays instant because **Postgres** caches history and **SSE** pushes updates as background work completes; **0G** receives the authoritative audit in parallel—**KV** for stream-oriented state and **DA** blobs for a complete JSON trace per cycle. **Execution defaults to Base** (KeeperHub + Uniswap) in this tree; swap env and integrations for another EVM L2 and the rest of the stack stays the same.
+Auto is a production-shaped monorepo: operators authenticate, configure vaults, and run trade cycles on demand (Manual run) or on a schedule (Autopilot Mode). Each cycle emits a structured artifact (proposal, risk outcome, optional swap execution). The interface stays instant because **Postgres** caches history and **SSE** pushes updates as background work completes; **0G** receives the authoritative audit in parallel—**KV** for stream-oriented state and **DA** blobs for a complete JSON trace per cycle. **Execution defaults to Base** (KeeperHub + Uniswap) in this tree; swap env and integrations for another EVM L2 and the rest of the stack stays the same.
 
 ---
 
